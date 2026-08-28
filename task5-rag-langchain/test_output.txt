@@ -1,0 +1,7 @@
+PASS test_load_and_split_excel (5 rows -> 5 chunks)
+PASS test_load_pdf (3 pages)
+PASS test_retriever_finds_relevant_chunk
+PASS test_answer_uses_retrieved_context
+PASS test_unsupported_file_type_raises
+
+All RAG pipeline tests passed.

@@ -22,15 +22,15 @@ def format_email(recipient: str, subject: str, body: str) -> dict:
     }
 
 
-def save_email(email: dict) -> bool:
-    os.makedirs(DATA_DIR, exist_ok=True)
+def save_email(email: dict, emails_file: str = EMAILS_FILE) -> bool:
     try:
+        os.makedirs(os.path.dirname(emails_file), exist_ok=True)
         records = []
-        if os.path.exists(EMAILS_FILE):
-            with open(EMAILS_FILE, "r", encoding="utf-8") as f:
+        if os.path.exists(emails_file):
+            with open(emails_file, "r", encoding="utf-8") as f:
                 records = json.load(f)
         records.append(email)
-        with open(EMAILS_FILE, "w", encoding="utf-8") as f:
+        with open(emails_file, "w", encoding="utf-8") as f:
             json.dump(records, f, indent=2)
         return True
     except OSError:
@@ -45,8 +45,8 @@ def send_email(email: dict) -> bool:
     return True
 
 
-def log_action(action: str, details: str = "") -> None:
-    os.makedirs(DATA_DIR, exist_ok=True)
+def log_action(action: str, details: str = "", log_file: str = LOG_FILE) -> None:
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
     timestamp = datetime.now(timezone.utc).isoformat()
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
+    with open(log_file, "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] {action}: {details}\n")

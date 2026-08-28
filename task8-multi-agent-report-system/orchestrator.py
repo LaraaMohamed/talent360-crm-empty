@@ -13,8 +13,8 @@ from agents import (
 
 
 class ReportOrchestrator:
-    def __init__(self, use_evaluator: bool = True):
-        self.llm = LLMBackend()
+    def __init__(self, use_evaluator: bool = True, llm: LLMBackend = None):
+        self.llm = llm or LLMBackend()
         self.planner = PlannerAgent(self.llm)
         self.researcher = ResearchAgent(self.llm)
         self.writer = WriterAgent(self.llm)

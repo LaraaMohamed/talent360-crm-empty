@@ -1,0 +1,6 @@
+PASS test_agents_run_in_order_with_evaluator
+PASS test_evaluator_is_optional
+PASS test_empty_question_is_rejected
+PASS test_all_four_required_agents_exist
+
+All multi-agent orchestrator tests passed.

@@ -1,0 +1,8 @@
+PASS test_format_email_rejects_empty_body
+PASS test_send_email_rejects_missing_body
+[SIMULATED SEND] To: jane@example.com | Subject: Re: Your inquiry
+PASS test_pipeline_success_path
+PASS test_pipeline_handles_empty_input
+PASS test_pipeline_handles_failed_save
+
+All email assistant tests passed.

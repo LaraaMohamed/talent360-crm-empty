@@ -4,17 +4,26 @@ Defines the individual agents that collaborate to produce a report.
 Each agent has a single responsibility and communicates through a shared
 LLM instance and a plain-text prompt built from the previous agents' output.
 """
-from transformers import pipeline
-
-
 class LLMBackend:
-    """Shared text-generation backend used by all agents."""
+    """Shared text-generation backend used by all agents.
 
-    def __init__(self, model_name: str = "google/flan-t5-base", max_new_tokens: int = 256):
-        self.generator = pipeline("text2text-generation", model=model_name, max_new_tokens=max_new_tokens)
+    Wraps a generator callable(prompt: str) -> str. Defaults to a local
+    Hugging Face model, loaded lazily so the agent classes can be
+    unit-tested with a fake callable without downloading anything.
+    """
+
+    def __init__(self, generator=None, model_name: str = "google/flan-t5-base", max_new_tokens: int = 256):
+        self.generator = generator or self._build_default_generator(model_name, max_new_tokens)
+
+    @staticmethod
+    def _build_default_generator(model_name: str, max_new_tokens: int):
+        from transformers import pipeline
+
+        pipe = pipeline("text2text-generation", model=model_name, max_new_tokens=max_new_tokens)
+        return lambda prompt: pipe(prompt)[0]["generated_text"].strip()
 
     def run(self, prompt: str) -> str:
-        return self.generator(prompt)[0]["generated_text"].strip()
+        return self.generator(prompt)
 
 
 class PlannerAgent:

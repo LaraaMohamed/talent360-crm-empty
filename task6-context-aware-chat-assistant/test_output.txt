@@ -1,0 +1,8 @@
+PASS test_memory_stores_turns
+PASS test_memory_trims_to_max_turns
+PASS test_assistant_remembers_name_across_turns
+PASS test_prompt_without_history_has_no_prior_context
+PASS test_prompt_includes_full_history
+PASS test_clear_memory_forgets_context
+
+All chat assistant tests passed.

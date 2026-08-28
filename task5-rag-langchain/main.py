@@ -7,7 +7,7 @@ Usage:
 """
 import sys
 
-from rag_pipeline import build_rag_chain, answer_question
+from rag_pipeline import RAGSystem
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
 
     file_path = sys.argv[1]
     print(f"Loading knowledge base from: {file_path}")
-    chain = build_rag_chain(file_path)
+    rag = RAGSystem.from_file(file_path)
     print("Knowledge base ready. Ask questions below (type 'exit' to quit).\n")
 
     while True:
@@ -26,7 +26,7 @@ def main():
             break
         if not question:
             continue
-        answer, sources = answer_question(chain, question)
+        answer, sources = rag.answer(question)
         print(f"\nAnswer: {answer}\n")
         print("Sources:")
         for doc in sources:
