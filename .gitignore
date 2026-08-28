@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+task5-rag-langchain/sample_data/*.index
+task7-email-assistant/data/
