@@ -1,16 +1,17 @@
 # Generative AI Tasks
 
-Four independent, self-contained mini-projects, each in its own folder,
-each ready to hand in and grade on its own — with its own `README.md`,
-`requirements.txt`, runnable code, sample data, and a passing offline test
-suite whose output is saved to `test_output.txt` in that folder.
+Four independent, self-contained mini-projects, each ready to hand in and
+grade on its own, available in **two equivalent forms**:
 
-| Folder | Task | Summary |
+- **`notebooks/`** — each task as a single `.ipynb` Jupyter notebook file (code, sample data generation, a demo run, and an offline automated test suite, all in one file, with outputs already saved from a verified run). See `notebooks/README.md`.
+- **Per-task folders below** — the same logic split into regular `.py` modules with a `README.md`, `requirements.txt`, and a `test_*.py` file whose output is saved to `test_output.txt`.
+
+| Folder / Notebook | Task | Summary |
 |---|---|---|
-| `task5-rag-langchain/` | RAG System using LangChain | Answers questions over a PDF/Excel knowledge base using a LangChain retriever + generator pipeline (FAISS + Hugging Face embeddings/LLM). |
-| `task6-context-aware-chat-assistant/` | Context-Aware Chat Assistant with Memory | A chat loop that stores conversation history and injects it into every new prompt so the model remembers earlier turns. |
-| `task7-email-assistant/` | Automated Generative AI Email Assistant with API Functions | Generates a professional email reply from a customer message and automatically formats, saves, and simulates sending it, with error handling. |
-| `task8-multi-agent-report-system/` | Multi-Agent AI System for Report Generation | Planner, Research, Writer, Summary, and Evaluator agents collaborate step by step to turn a question into a structured report. |
+| `task5-rag-langchain/` · `notebooks/Task5_RAG_System_LangChain.ipynb` | RAG System using LangChain | Answers questions over a PDF/Excel knowledge base using a LangChain retriever + generator pipeline (FAISS + Hugging Face embeddings/LLM). |
+| `task6-context-aware-chat-assistant/` · `notebooks/Task6_Context_Aware_Chat_Assistant.ipynb` | Context-Aware Chat Assistant with Memory | A chat loop that stores conversation history and injects it into every new prompt so the model remembers earlier turns. |
+| `task7-email-assistant/` · `notebooks/Task7_Email_Assistant.ipynb` | Automated Generative AI Email Assistant with API Functions | Generates a professional email reply from a customer message and automatically formats, saves, and simulates sending it, with error handling. |
+| `task8-multi-agent-report-system/` · `notebooks/Task8_MultiAgent_Report_System.ipynb` | Multi-Agent AI System for Report Generation | Planner, Research, Writer, Summary, and Evaluator agents collaborate step by step to turn a question into a structured report. |
 
 ## Running a task
 ```bash

@@ -5,3 +5,6 @@ venv/
 *.egg-info/
 task5-rag-langchain/sample_data/*.index
 task7-email-assistant/data/
+notebooks/data/
+notebooks/sample_data/
+.ipynb_checkpoints/
