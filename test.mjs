@@ -25,6 +25,15 @@ import { Readable } from 'node:stream';
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-test-'));
 process.env.CRM_DB = path.join(TMP, 'test.db');
 process.env.CRM_STORAGE = path.join(TMP, 'storage');
+// This suite must run against its own throwaway file, never whatever backend
+// the environment happens to be configured for — a CI/build step that
+// inherits a real TURSO_URL or DATABASE_URL (e.g. Railway's build phase,
+// which cannot even reach a private DATABASE_URL host) must still get the
+// isolated local SQLite database described above, not a connection attempt
+// to production or staging infrastructure.
+delete process.env.TURSO_URL;
+delete process.env.LIBSQL_URL;
+delete process.env.DATABASE_URL;
 
 const db = await import('./lib/db.mjs');
 const auth = await import('./lib/auth.mjs');
