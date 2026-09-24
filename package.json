@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "CRM core built around the LinkedIn qualification engine. Zero runtime dependencies.",
+  "description": "CRM core built around the LinkedIn qualification engine. Zero runtime dependencies on the SQLite/Turso paths; this postgres-poc branch adds `pg`, used only by lib/postgres.mjs, for the Postgres-on-Railway evaluation.",
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
