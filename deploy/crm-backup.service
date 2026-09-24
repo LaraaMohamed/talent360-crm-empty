@@ -1,0 +1,13 @@
+# /etc/systemd/system/crm-backup.service
+[Unit]
+Description=CRM verified backup, mirrored to Cloud Storage in Doha
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=crm
+Group=crm
+WorkingDirectory=/srv/crm
+Environment=CRM_BACKUP_BUCKET=talent360crm-v1-crm-backups
+Environment=CRM_BACKUP_DIR=/srv/crm-data/backups
+ExecStart=/srv/crm/deploy/backup-to-gcs.sh

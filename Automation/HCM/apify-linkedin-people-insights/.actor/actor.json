@@ -1,0 +1,49 @@
+{
+  "actorSpecification": 1,
+  "name": "linkedin-company-people-insights",
+  "title": "LinkedIn Company People Insights (Aggregates)",
+  "description": "Reads the aggregated People Insights panels from a LinkedIn company page (What they do / Where they live / Where they studied) plus company metadata, then scores each company with a declarative qualification engine. One page load per company; never visits employee profiles unless explicitly enabled.",
+  "version": "1.0",
+  "buildTag": "latest",
+  "dockerfile": "./Dockerfile",
+  "input": "./input_schema.json",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "qualification": {
+          "title": "Qualification summary",
+          "transformation": {
+            "fields": [
+              "company.name",
+              "company.universalName",
+              "metrics.totalAssociatedMembers",
+              "metrics.hrEmployeeCount",
+              "metrics.egyptEmployeeCount",
+              "qualification.score",
+              "qualification.verdict",
+              "provenance.tier",
+              "provenance.pageLoads"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "company.name": { "label": "Company" },
+              "company.universalName": { "label": "Slug" },
+              "metrics.totalAssociatedMembers": { "label": "Members" },
+              "metrics.hrEmployeeCount": { "label": "HR" },
+              "metrics.egyptEmployeeCount": { "label": "In country" },
+              "qualification.score": { "label": "Score" },
+              "qualification.verdict": { "label": "Verdict" },
+              "provenance.tier": { "label": "Source tier" },
+              "provenance.pageLoads": { "label": "Loads" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "minMemoryMbytes": 256,
+  "maxMemoryMbytes": 1024
+}

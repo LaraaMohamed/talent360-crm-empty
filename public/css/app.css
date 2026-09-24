@@ -1,0 +1,1847 @@
+/**
+ * Application styles.
+ *
+ * Logical properties throughout (`inline-start`, not `left`). The admin
+ * interface is English and left-to-right — the direction toggle that used to
+ * mirror the whole shell is gone — but the logical properties stay, because
+ * they cost nothing and Arabic content still appears inside this app: the
+ * document-generation wizard's Arabic fields, and the contracts it renders.
+ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+/* The shell's own height. `.app` is `height: 100%`, which resolves against the
+   parent it sits in — `#root` is that parent, and a percentage height cannot
+   resolve against an auto-height box. Without this rule the whole grid grew to
+   its content instead of the viewport, and the window scrolled: a tall
+   Documents tab put a scrollbar on the page even when the tab had room to grow
+   into. Pinning the parent makes `.content` the one scrolling box, so a tab
+   fills the screen and only overflows — and scrolls — when it truly cannot. */
+#root { height: 100%; }
+
+body {
+    margin: 0;
+    background: var(--color-bg-canvas);
+    color: var(--color-fg-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, p, figure { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Focus is always visible and never removed — keyboard operation is a
+   requirement, not an accessibility extra. */
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+:focus:not(:focus-visible) { outline: none; }
+
+.visually-hidden {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+}
+
+/* Digits align down a column in every table, metric and money figure. */
+.tabular, td.num, .metric-value, .money { font-variant-numeric: tabular-nums; }
+
+/* ============================================================== app shell == */
+
+.app {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) 1fr;
+    grid-template-rows: 100%;
+    height: 100%;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg-surface);
+    border-inline-end: 1px solid var(--color-border-subtle);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    font-weight: var(--weight-semibold);
+    font-size: var(--text-lg);
+    letter-spacing: -0.01em;
+    border-block-end: 1px solid var(--color-border-subtle);
+    min-height: var(--header-height);
+}
+.sidebar-brand .mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.sidebar-brand-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+}
+.sidebar-brand small { font-size: var(--text-xs); color: var(--color-fg-tertiary); font-weight: var(--weight-normal); }
+
+.nav { padding: var(--space-3) var(--space-2); }
+.nav-group + .nav-group { margin-block-start: var(--space-4); }
+.nav-label {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-fg-tertiary);
+    font-weight: var(--weight-medium);
+}
+.nav-item {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--color-fg-secondary);
+    font-size: var(--text-base);
+    transition: background var(--duration-instant), color var(--duration-instant);
+}
+/* Icons are drawn in currentColor at the weight of the text beside them, so a
+   row's hover, active and dark states reach the icon without being restated. */
+.icon { flex: none; display: block; opacity: 0.85; }
+.nav-item .icon { opacity: 0.7; }
+.nav-item:hover .icon, .nav-item.active .icon { opacity: 1; }
+
+.nav-item:hover { background: var(--color-bg-hover); color: var(--color-fg-primary); text-decoration: none; }
+.nav-item.active { background: var(--color-bg-selected); color: var(--color-accent); font-weight: var(--weight-medium); }
+.nav-item .count { margin-inline-start: auto; font-size: var(--text-xs); color: var(--color-fg-tertiary); }
+
+/* A section header that folds. Inherits .nav-label for type and spacing, so a
+   collapsible section reads as the same kind of thing as a fixed one. */
+.nav-toggle {
+    display: flex; align-items: center; gap: var(--space-2);
+    inline-size: 100%;
+    font-family: inherit;
+    background: none; border: 0; cursor: pointer;
+    text-align: start;
+    border-radius: var(--radius-md);
+    transition: color var(--duration-instant), background var(--duration-instant);
+}
+.nav-toggle:hover { background: var(--color-bg-hover); color: var(--color-fg-secondary); }
+.nav-chevron {
+    /* inline-block, not inline: a transform is ignored on a non-replaced
+       inline element, so the chevron would never turn. */
+    display: inline-block;
+    font-size: 0.75em;
+    line-height: 1;
+    transition: transform var(--duration-instant);
+}
+.nav-group.open .nav-chevron { transform: rotate(90deg); }
+.nav-collapse { display: none; }
+.nav-group.open .nav-collapse { display: block; }
+
+/**
+ * Who is signed in — in the TOP BAR, not the sidebar.
+ *
+ * The whole block is one anchor: avatar, name and role together. It used to be
+ * a label with a 16px cog beside it as the only live target, which makes the
+ * reader hunt for the hit area, and it lived in the sidebar — a drawer behind
+ * a hamburger on any narrow screen, so "which account is this?" cost a click
+ * on a phone.
+ */
+.topbar-user {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    color: inherit;
+    max-inline-size: 12rem;
+    transition: background var(--duration-instant);
+}
+.topbar-user:hover { background: var(--color-bg-hover); text-decoration: none; }
+.topbar-user:hover .small { color: var(--color-accent); }
+.topbar-user-text { min-inline-size: 0; line-height: var(--leading-tight); }
+
+/* Below the point where the topbar gets crowded, the avatar carries it alone.
+   It is still the same link, and the name is still in its title. */
+@media (max-width: 64rem) {
+    .topbar-user-text { display: none; }
+    .topbar-user { max-inline-size: none; }
+}
+
+.avatar {
+    inline-size: 1.75rem; block-size: 1.75rem;
+    border-radius: var(--radius-full);
+    background: var(--color-accent-subtle); color: var(--color-accent);
+    display: grid; place-items: center;
+    font-size: var(--text-xs); font-weight: var(--weight-semibold);
+    flex: none;
+}
+.avatar.lg { inline-size: 2.5rem; block-size: 2.5rem; font-size: var(--text-base); }
+
+.main { display: flex; flex-direction: column; min-inline-size: 0; overflow: hidden; }
+
+.topbar {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding-inline: var(--space-5);
+    min-block-size: var(--header-height);
+    background: var(--color-bg-surface);
+    border-block-end: 1px solid var(--color-border-subtle);
+    flex: none;
+}
+.topbar-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: -0.01em; }
+.topbar-actions { margin-inline-start: auto; display: flex; align-items: center; gap: var(--space-2); }
+
+.content { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.content-inner { padding: var(--space-5); max-inline-size: 100rem; }
+.content-inner.narrow { max-inline-size: 56rem; }
+
+/* ================================================================ search == */
+
+.search-trigger {
+    display: flex; align-items: center; gap: var(--space-2);
+    inline-size: min(22rem, 34vw);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-sunken);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--color-fg-tertiary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    text-align: start;
+}
+.search-trigger:hover { border-color: var(--color-border-default); }
+.search-trigger kbd { margin-inline-start: auto; }
+
+kbd {
+    font-family: var(--font-mono); font-size: var(--text-xs);
+    padding: 0.1em 0.4em;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface);
+    color: var(--color-fg-tertiary);
+}
+
+/* ============================================================== controls == */
+
+.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-fg-primary);
+    font-size: var(--text-sm); font-weight: var(--weight-medium);
+    cursor: pointer; white-space: nowrap;
+    transition: background var(--duration-instant), border-color var(--duration-instant);
+}
+.btn:hover:not(:disabled) { background: var(--color-bg-hover); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-fg-on-accent); }
+.btn.primary:hover:not(:disabled) { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--color-fg-secondary); }
+.btn.ghost:hover:not(:disabled) { background: var(--color-bg-hover); color: var(--color-fg-primary); }
+.btn.danger { color: var(--color-danger); border-color: var(--color-danger); background: transparent; }
+.btn.danger:hover:not(:disabled) { background: var(--color-danger-subtle); }
+.btn.sm { padding: var(--space-1) var(--space-2); font-size: var(--text-xs); }
+.btn.icon { padding: var(--space-2); }
+.btn.block { inline-size: 100%; }
+
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+.field > label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-fg-secondary); }
+.field .required { color: var(--color-danger); margin-inline-start: 0.15em; }
+.field .help { font-size: var(--text-xs); color: var(--color-fg-tertiary); line-height: var(--leading-normal); }
+/* Errors sit beneath the field, in words. */
+.field .error { font-size: var(--text-xs); color: var(--color-danger); }
+
+/* A form in sections. The heading is quiet on purpose — it groups the fields
+   beneath it and should not compete with them for attention. */
+.form-section {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-fg-tertiary);
+    padding-block-end: var(--space-2);
+    border-block-end: 1px solid var(--color-border-subtle);
+    margin-block-start: var(--space-3);
+}
+.stack.tight > .form-section:first-child { margin-block-start: 0; }
+
+/* External IDs, attribution and overrides: present, and out of the way. */
+.form-advanced { margin-block-start: var(--space-3); }
+.form-advanced > summary { cursor: pointer; padding-block: var(--space-1); }
+.form-advanced > summary:hover { color: var(--color-fg-secondary); }
+
+.input, select.input, textarea.input {
+    inline-size: 100%;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
+    color: var(--color-fg-primary);
+    font-size: var(--text-base);
+    transition: border-color var(--duration-instant), box-shadow var(--duration-instant);
+}
+.input:hover:not(:disabled) { border-color: var(--color-border-strong); }
+.input:focus { outline: none; border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-subtle); }
+.input:disabled { background: var(--color-bg-sunken); color: var(--color-fg-tertiary); cursor: not-allowed; }
+.input::placeholder { color: var(--color-fg-tertiary); }
+textarea.input { min-block-size: 5rem; resize: vertical; line-height: var(--leading-normal); }
+select.input { cursor: pointer; }
+
+.checkbox { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-base); cursor: pointer; }
+.checkbox input { inline-size: 1rem; block-size: 1rem; accent-color: var(--color-accent); cursor: pointer; }
+
+/* ================================================================ badges == */
+
+.badge {
+    display: inline-flex; align-items: center; gap: var(--space-1);
+    padding: 0.15em 0.55em;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs); font-weight: var(--weight-medium);
+    background: var(--color-info-subtle); color: var(--color-info);
+    white-space: nowrap;
+}
+.badge.success { background: var(--color-success-subtle); color: var(--color-success); }
+.badge.warning { background: var(--color-warning-subtle); color: var(--color-warning); }
+.badge.danger { background: var(--color-danger-subtle); color: var(--color-danger); }
+.badge.accent { background: var(--color-accent-subtle); color: var(--color-accent); }
+
+/**
+ * VERDICT BADGE.
+ *
+ * Shape AND word AND colour, always. Green/amber/red alone is unreadable for
+ * the most common colour blindness, and this is the one distinction in the
+ * product a user cannot afford to misread.
+ */
+.verdict {
+    display: inline-flex; align-items: center; gap: 0.4em;
+    padding: 0.15em 0.6em;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs); font-weight: var(--weight-semibold);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.verdict .shape { font-size: 0.9em; line-height: 1; }
+.verdict[data-verdict="QUALIFIED"] { background: var(--color-verdict-qualified-bg); color: var(--color-verdict-qualified); }
+.verdict[data-verdict="REVIEW"] { background: var(--color-verdict-review-bg); color: var(--color-verdict-review); }
+.verdict[data-verdict="REJECTED"] { background: var(--color-verdict-rejected-bg); color: var(--color-verdict-rejected); }
+.verdict[data-verdict="UNRESOLVED"] { background: var(--color-verdict-unresolved-bg); color: var(--color-verdict-unresolved); }
+.verdict[data-verdict="ERROR"] { background: var(--color-verdict-error-bg); color: var(--color-verdict-error); }
+
+/* A badge with no word is an ABSENCE of a verdict, not a quiet one. It carries
+   the shape only, so a lead nobody has assessed reads as unremarkable rather
+   than as a judgement that went against it. */
+.verdict.quiet {
+    background: none;
+    color: var(--color-fg-tertiary);
+    padding-inline: 0;
+}
+
+/* A two-year-old QUALIFIED must not look like a fresh one. */
+.verdict.stale { opacity: 0.72; border: 1px dashed currentColor; }
+.verdict.lg { font-size: var(--text-base); padding: 0.3em 0.8em; }
+
+.stale-note { font-size: var(--text-xs); color: var(--color-warning); display: inline-flex; align-items: center; gap: var(--space-1); }
+
+/* =============================================================== surfaces == */
+
+.card {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-lg);
+}
+.card + .card { margin-block-start: var(--space-4); }
+.card-header {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-block-end: 1px solid var(--color-border-subtle);
+}
+.card-header h2, .card-header h3 { font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.card-header .actions { margin-inline-start: auto; display: flex; gap: var(--space-2); align-items: center; }
+.card-body { padding: var(--space-4); }
+.card-body.flush { padding: 0; }
+
+.grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(12, 1fr); }
+.grid > .span-3 { grid-column: span 3; }
+.grid > .span-4 { grid-column: span 4; }
+.grid > .span-6 { grid-column: span 6; }
+.grid > .span-8 { grid-column: span 8; }
+.grid > .span-12 { grid-column: span 12; }
+
+/**
+ * A column, and one that does not let its widest child stretch it.
+ *
+ * `min-inline-size` on a flex item defaults to `auto`, meaning "at least as
+ * wide as my content" — so a `.table-wrap` inside a `.stack` handed the stack
+ * the table's full width instead of scrolling inside it, and the card overflowed
+ * its column on a phone. The whole point of the scroll container is that the
+ * table is allowed to be wider than the page; that only works if everything
+ * above it agrees to be narrower.
+ */
+.stack { display: flex; flex-direction: column; gap: var(--space-4); min-inline-size: 0; }
+.stack > * { min-inline-size: 0; }
+.stack.tight { gap: var(--space-2); }
+.row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.row.between { justify-content: space-between; }
+.spacer { flex: 1; }
+
+.muted { color: var(--color-fg-secondary); }
+.dim { color: var(--color-fg-tertiary); }
+.small { font-size: var(--text-sm); }
+.xs { font-size: var(--text-xs); }
+.strong { font-weight: var(--weight-semibold); }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/**
+ * A figure sits UNDER its own label, and the figures line up across a row.
+ *
+ * They did not. Each tile was a plain column, so a tile whose label wrapped to
+ * two lines pushed its number a line lower than its neighbours — and the row of
+ * numbers that is the entire point of the strip read as a scatter. Worse, in a
+ * row of five the eye cannot tell which label a number belongs to when they sit
+ * at different heights.
+ *
+ * The fix is in two parts. The label reserves the height of two lines, so a
+ * one-line and a two-line label occupy the same box. And the tile pushes its
+ * value to the bottom, so even a three-line label leaves its number on the same
+ * baseline as the rest of the row.
+ */
+.metric { display: flex; flex-direction: column; gap: var(--space-1); justify-content: space-between; block-size: 100%; }
+.metric-label {
+    font-size: var(--text-xs);
+    color: var(--color-fg-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    /* Two lines' worth, whether or not this one needs both. */
+    line-height: 1.3;
+    min-block-size: calc(1.3em * 2);
+}
+/* nowrap suits the common case (a price, a currency code) — but a tile whose
+   value is genuinely long, a date range being the frequent one, overflowed
+   past the card's edge instead of wrapping, with nothing to stop it running
+   into whatever sat beside it. Wrapping needs the grid item able to shrink
+   below its content's width too, or the browser just widens the column
+   instead — see `min-inline-size: 0` on `.stat-grid > .metric` below. */
+.metric-value { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: -0.02em; line-height: 1.15; overflow-wrap: break-word; }
+.metric-help { font-size: var(--text-xs); color: var(--color-fg-tertiary); }
+
+/* An explanation that is available rather than printed. The dotted underline is
+   what stops "available" meaning "hidden". */
+.metric-label.has-help {
+    text-decoration: underline dotted var(--color-border-strong);
+    text-underline-offset: 3px;
+    cursor: help;
+}
+
+/* Tone colours the NUMBER, never the tile. Four coloured panels is a traffic
+   light; most figures are neither good nor bad. */
+.metric.tone-success .metric-value { color: var(--color-success); }
+.metric.tone-warning .metric-value { color: var(--color-warning); }
+.metric.tone-danger  .metric-value { color: var(--color-danger); }
+.metric.tone-strong  .metric-value { color: var(--color-fg-primary); font-size: var(--text-3xl); }
+
+/* A show-rate tile stands out: it is the headline the funnel collapses without. */
+.metric.tone-strong { border: 2px solid var(--color-accent); background: var(--color-accent-subtle); }
+
+/* A row of numbers that reads as a row of numbers: each on its own surface,
+   sized by content rather than pinned to a twelve-column grid. */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: var(--space-3);
+    /* Every tile in a row is as tall as the tallest, which is what lets the
+       values below them share a baseline. */
+    align-items: stretch;
+}
+.stat-grid > .metric,
+.stat-grid > .stat-link {
+    padding: var(--space-3);
+    background: var(--color-bg-sunken);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    block-size: 100%;
+    /* A grid item's default min-width is its content's own width, which is
+       exactly what let a long value push the tile wider than its column and
+       over whatever sat beside it. This lets it shrink back to the track. */
+    min-inline-size: 0;
+}
+/* A link wraps a metric, so it has to pass the height through to it. */
+.stat-grid > .stat-link { display: flex; }
+.stat-grid > .stat-link > .metric { inline-size: 100%; }
+
+/* Narrow screens: two per row rather than one, so a funnel still reads as a
+   funnel on a phone instead of as a vertical list of unrelated numbers. */
+@media (max-width: 40rem) {
+    .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .metric-value { font-size: var(--text-xl); }
+}
+.stat-link { color: inherit; text-decoration: none; display: block; transition: border-color var(--duration-fast); }
+.stat-link:hover { border-color: var(--color-accent); text-decoration: none; }
+.stat-link:hover .metric-value { color: var(--color-accent); }
+
+/**
+ * Compact rows, for people who read these tables all day.
+ *
+ * Stamped on the document by Settings, so every table in the product agrees at
+ * once rather than each carrying its own toggle. Only padding and type size
+ * change: nothing is hidden, nothing wraps differently, and the column widths
+ * are still decided by the same rules — a dense table has to be the same table,
+ * or "compact" becomes a second layout to keep working.
+ */
+:root[data-density="compact"] table.data td { padding: var(--space-1) var(--space-2); }
+:root[data-density="compact"] table.data th { padding: var(--space-1) var(--space-2); }
+:root[data-density="compact"] table.data { font-size: var(--text-xs); }
+:root[data-density="compact"] .timeline-item { padding-block: var(--space-2); }
+:root[data-density="compact"] .card-body { padding: var(--space-3); }
+
+/* The dashboard's bands. The heading is the only thing on the page allowed to
+   outrank a card title, which is what stops nine cards reading as one list. */
+.dash-band + .dash-band { margin-block-start: var(--space-6); }
+.dash-band-title {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-fg-secondary);
+    margin-block-end: var(--space-3);
+    padding-block-end: var(--space-2);
+    border-block-end: 1px solid var(--color-border-default);
+}
+
+/* Every widget states its date range and when it was computed. An unlabelled
+   number on a dashboard is a rumour. */
+.widget-meta {
+    padding: var(--space-2) var(--space-4);
+    border-block-start: 1px solid var(--color-border-subtle);
+    font-size: var(--text-xs); color: var(--color-fg-tertiary);
+    display: flex; gap: var(--space-3); flex-wrap: wrap;
+}
+
+.note-box {
+    padding: var(--space-3);
+    background: var(--color-bg-sunken);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-fg-secondary);
+    line-height: var(--leading-normal);
+}
+.note-box.warning { background: var(--color-warning-subtle); color: var(--color-warning); }
+.note-box.danger { background: var(--color-danger-subtle); color: var(--color-danger); }
+.note-box.accent { background: var(--color-accent-subtle); color: var(--color-accent); }
+
+/* ================================================================= tables == */
+
+/* `overflow-y` is explicit, not left to default. Setting only `overflow-x`
+   makes the browser treat the Y axis as `auto` too (CSSOM computes a lone
+   `visible` axis up to `auto` the moment the other one is not `visible`) — so
+   a container whose content is a sub-pixel taller than its box, purely from
+   rounding, grows a real vertical scrollbar nobody asked for and nothing
+   inside actually needs. */
+.table-wrap { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; max-inline-size: 100%; }
+
+table.data {
+    inline-size: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--text-sm);
+}
+table.data th {
+    position: sticky; inset-block-start: 0; z-index: 2;
+    background: var(--color-bg-surface);
+    text-align: start;
+    font-size: var(--text-xs); font-weight: var(--weight-semibold);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--color-fg-secondary);
+    padding: var(--space-2) var(--space-3);
+    border-block-end: 1px solid var(--color-border-default);
+    /**
+     * The HEADER wraps, and this is what makes the table fit.
+     *
+     * It was `nowrap`. With the automatic table layout a column can never be
+     * narrower than its widest unbreakable thing, so eight headers like
+     * "LAST OUTCOME" and "NEXT FOLLOW-UP" each pinned their column to the full
+     * width of the phrase — and the sum of those was wider than the screen.
+     * The result was the worst of both: cells wrapping onto three lines to fit
+     * a width they had already been denied, AND a horizontal scrollbar.
+     *
+     * Two short words over two lines in a header costs nothing; a scrollbar on
+     * every list costs a click before you can read the row.
+     */
+    white-space: normal;
+    overflow-wrap: break-word;
+    /* Enough for the longest single word in a heading, so a column can give
+       ground without collapsing to one letter per line. */
+    min-inline-size: 5rem;
+}
+/* A count or a date is narrow by nature and should not be handed a share of
+   the width it cannot use. */
+/* A numeric column's HEADING sits over its numbers.
+   The cells were aligned to the end and the headings were not, so every
+   figure in the calling table hung to the right of the word naming it. The
+   heading is a sort button — inline-level, so the alignment reaches it. */
+/**
+ * A metrics table inside a dashboard card.
+ *
+ * ── THE PROBLEM WITH LETTING IT BEHAVE LIKE A LIST ──────────────────────────
+ *
+ * `table.data` is 100% wide and its columns size to content, so all the slack
+ * lands in the one column that is not a number — the person's name. On a wide
+ * screen that gave the SDR column seven hundred pixels of empty space and shunted
+ * eleven columns of figures against the right edge, far enough from the names
+ * they belong to that reading across a row meant tracking a line with a finger.
+ * And because the numbers were then crammed together, the last column fell off
+ * the end behind a scrollbar.
+ *
+ * ── SO THE SLACK GOES TO THE FIGURES ────────────────────────────────────────
+ *
+ * The name column is given a width and told to keep it; the numeric columns
+ * divide what is left between them evenly. Nothing is pushed anywhere: each
+ * figure sits under its own heading with room around it, which is the whole
+ * job of this table.
+ *
+ * `table-layout: fixed` is what makes the widths declarations rather than
+ * suggestions — without it the browser re-measures from the content and the
+ * name column takes the space straight back.
+ */
+.widget-table { table-layout: fixed; }
+table.data.widget-table th:first-child,
+table.data.widget-table td:first-child {
+    inline-size: 9rem;
+    max-inline-size: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Every numeric column takes an equal share of the remainder. `auto` under a
+   fixed layout with no width set does exactly that.
+   Selector-matched to `table.data th.num` above, which sets a 4rem minimum
+   meant for a full-page list: at equal specificity the later rule wins, and at
+   lower specificity this one silently lost and the table overflowed by exactly
+   that minimum. */
+table.data.widget-table th.num,
+table.data.widget-table td.num { inline-size: auto; min-inline-size: 0; }
+
+/**
+ * Widget tables CENTER everything — names and numbers both.
+ *
+ * The full-page lists keep their financial convention (`.num` is end-aligned
+ * tabular figures); a dashboard card is a different reading. Its columns are
+ * equal-width slots under centred headings, and one SDR's "42" sitting at the
+ * right edge of its slot while the heading sits in the middle reads as
+ * misalignment, not as accounting style. These rules out-rank
+ * `table.data th.num / td.num` on specificity, so the flip is scoped to
+ * widget cards only and touches nothing else.
+ */
+table.data.widget-table th,
+table.data.widget-table td { text-align: center; }
+
+/**
+ * And the heading itself wraps.
+ *
+ * Each heading is a SORT BUTTON, and `.btn` is `white-space: nowrap` — right
+ * for a button, wrong for a table heading. Under `table-layout: fixed` the
+ * column keeps its share and the un-wrappable word simply spilled past it, so
+ * the table's scroll width exceeded its columns by the length of the longest
+ * word and the card scrolled for no visible reason.
+ */
+/* A heading that carries its definition says so, the same dotted underline the
+   stat tiles use — "available" rather than "hidden". */
+table.data.widget-table th .btn.has-help {
+    text-decoration: underline dotted var(--color-border-strong);
+    text-underline-offset: 3px;
+    cursor: help;
+}
+
+table.data.widget-table th .btn,
+table.data.widget-table th button {
+    white-space: normal;
+    /* Buttons are FLEX boxes (.btn uses inline-flex + justify-content:center),
+       so text-align alone does nothing here. The headings are centred like
+       every other cell in a widget table (see above), which is exactly the
+       flex default — declared anyway so the intent survives a future change
+       to .btn itself. */
+    justify-content: center;
+    text-align: inherit;
+    line-height: 1.25;
+    inline-size: 100%;
+}
+
+/* Narrow screens cannot fit eleven columns however the space is divided, so
+   there the table scrolls inside its card — with the name column pinned, so
+   the row being read never loses the person it belongs to. */
+@media (max-width: 60rem) {
+    table.data.widget-table { table-layout: auto; min-inline-size: 44rem; }
+    table.data.widget-table th:first-child,
+    table.data.widget-table td:first-child {
+        position: sticky;
+        inset-inline-start: 0;
+        background: var(--color-bg-surface);
+        z-index: 1;
+    }
+}
+
+table.data th.num { min-inline-size: 4rem; text-align: end; }
+/* The select-all box is a fixed 2.5rem, declared below — it must never be
+   given a minimum meant for a column of words. */
+table.data th.check { min-inline-size: 0; }
+table.data th.sortable { cursor: pointer; user-select: none; }
+table.data th.sortable:hover { color: var(--color-fg-primary); }
+table.data th .dir, .toolbar .btn .dir { margin-inline-start: var(--space-1); color: var(--color-accent); }
+table.data td {
+    padding: var(--space-2) var(--space-3);
+    border-block-end: 1px solid var(--color-border-subtle);
+    vertical-align: top;
+    max-inline-size: 22rem;
+}
+
+/**
+ * The variable-mapping table, on the review step of document generation.
+ *
+ * A row is tinted only when a REQUIRED variable has no value: the whole point of
+ * showing the map before generating is that "which of these thirty is going to
+ * come out blank?" can be answered by looking rather than by reading every row.
+ * The inline input is how it gets fixed without leaving the step.
+ */
+table.data tr.row-danger > td { background: var(--color-danger-subtle); }
+/* Renewals: inside the notice window but not yet past expiry — open, not missed. */
+table.data tr.row-warning > td { background: var(--color-warning-subtle); }
+.input.sm { padding: var(--space-1) var(--space-2); font-size: var(--text-sm); }
+
+/**
+ * Long values WRAP; they are not cut off.
+ *
+ * Cells and record fields used to end in an ellipsis, which hides the very
+ * thing the column exists to show — a job title of "Co-founder & Chairman of
+ * the Board of Directors" became "Co-founder & Chair…", and the rest was only
+ * available in a `title` tooltip, which does not exist on a phone at all.
+ * `.truncate` still does its job everywhere it is structural (the sidebar, the
+ * top bar, chips, the command palette), where a second line would break a
+ * fixed-height row.
+ */
+table.data td .truncate,
+.record-layout .field .truncate,
+.detail-list dd .truncate {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    /* `break-word` and not `anywhere`: a long word moves to its own line before
+       it is broken mid-word, so an email address stays readable. */
+    overflow-wrap: break-word;
+}
+table.data td { overflow-wrap: break-word; }
+table.data tbody tr { transition: background var(--duration-instant); }
+table.data tbody tr:hover { background: var(--color-bg-hover); }
+table.data tbody tr.selected { background: var(--color-bg-selected); }
+table.data td.num { text-align: end; }
+table.data td.check, table.data th.check { inline-size: 2.5rem; padding-inline-end: 0; }
+table.data td.actions, table.data th.actions { inline-size: max-content; white-space: nowrap; text-align: end; }
+table.data td.actions .row { justify-content: flex-end; }
+table.data tfoot tr.totals td {
+    border-block-start: 2px solid var(--color-border-strong);
+    font-weight: var(--weight-semibold);
+    background: var(--color-bg-sunken);
+}
+
+.cell-link { color: var(--color-fg-primary); font-weight: var(--weight-medium); }
+.cell-link:hover { color: var(--color-accent); }
+
+.pagination {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-block-start: 1px solid var(--color-border-subtle);
+    font-size: var(--text-sm); color: var(--color-fg-secondary);
+}
+
+/* The bulk bar. "Select all matching" is the whole difference between a tool
+   and a toy, so it is stated in the bar rather than hidden in a menu. */
+.bulk-bar {
+    display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-selected);
+    border-block-end: 1px solid var(--color-border-default);
+    font-size: var(--text-sm);
+}
+
+/* =============================================================== toolbar == */
+
+.toolbar {
+    display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+    border-block-end: 1px solid var(--color-border-subtle);
+}
+
+.view-tabs { display: flex; gap: var(--space-1); overflow-x: auto; overflow-y: hidden; padding-block: var(--space-1); }
+.view-tab {
+    /* inline-flex so a tab carrying an icon aligns it with its own label
+       instead of letting the SVG sit on the text baseline. */
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-fg-secondary);
+    white-space: nowrap; cursor: pointer;
+    border: 1px solid transparent; background: transparent;
+}
+.view-tab:hover { background: var(--color-bg-hover); color: var(--color-fg-primary); }
+.view-tab.active { background: var(--color-bg-selected); color: var(--color-accent); font-weight: var(--weight-medium); }
+
+/* A saved view or list had no delete anywhere in the product — the API
+   existed, nothing in the UI reached it. The × sits outside the tab's own
+   button (nesting a button in a button is invalid HTML and would have
+   fired the tab's onclick too), quiet until the row is hovered or the
+   delete itself is focused, so the tab strip does not read as a wall of
+   × buttons when nothing is being cleaned up. */
+.view-tab-wrap { position: relative; display: inline-flex; align-items: center; }
+.view-tab-delete {
+    display: inline-flex; align-items: center; justify-content: center;
+    inline-size: 1.1rem; block-size: 1.1rem;
+    margin-inline-start: -1.6rem; margin-inline-end: var(--space-1);
+    border-radius: var(--radius-sm);
+    border: none; background: transparent;
+    color: var(--color-fg-tertiary);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--duration-fast);
+}
+.view-tab-wrap:hover .view-tab-delete,
+.view-tab-delete:focus-visible {
+    opacity: 1;
+}
+.view-tab-delete:hover { background: var(--color-danger-subtle); color: var(--color-danger); }
+.view-tab-delete svg { inline-size: 0.8rem; block-size: 0.8rem; }
+
+/* The record count. Tabular figures so the numbers do not shimmy as they land,
+   and quieter than the label — it is the tab you click, not the number. */
+.tab-count {
+    margin-inline-start: var(--space-2);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-fg-tertiary);
+}
+.view-tab.active .tab-count { color: var(--color-accent); }
+
+/* Upload-history funnel counts. Coloured from the VERDICT tokens, not the
+   semantic palette, for the same reason the verdict badge is: REJECTED must
+   never be able to look like QUALIFIED, whatever the workspace accent becomes. */
+.funnel-count { font-variant-numeric: tabular-nums; font-weight: var(--weight-medium); }
+.funnel-count.is-qualified { color: var(--color-verdict-qualified); }
+.funnel-count.is-review    { color: var(--color-verdict-review); }
+.funnel-count.is-rejected  { color: var(--color-verdict-rejected); }
+
+.chip {
+    display: inline-flex; align-items: center; gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-bg-sunken);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+}
+.chip button { border: none; background: none; cursor: pointer; color: var(--color-fg-tertiary); padding: 0 0.1em; }
+.chip button:hover { color: var(--color-danger); }
+
+/* A chip that is itself a button — the search page's object filters. */
+button.chip { cursor: pointer; font: inherit; font-size: var(--text-xs); }
+button.chip:hover { background: var(--color-bg-hover); }
+button.chip.accent { background: var(--color-bg-selected); border-color: var(--color-accent); color: var(--color-accent); }
+.chip.dim { opacity: 0.55; }
+
+/* ================================================================= import == */
+
+.dropzone {
+    display: grid; gap: var(--space-2); justify-items: center; text-align: center;
+    padding: var(--space-6) var(--space-4);
+    margin-block-start: var(--space-3);
+    border: 2px dashed var(--color-border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-sunken);
+    cursor: pointer;
+    transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+.dropzone:hover, .dropzone.over { border-color: var(--color-accent); background: var(--color-bg-selected); }
+.dropzone input[type="file"] { font-size: var(--text-sm); }
+
+/* ================================================================= search == */
+
+.search-hit {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    color: inherit; text-decoration: none;
+}
+.search-hit:hover { background: var(--color-bg-hover); }
+/* Results waiting to be replaced by a newer query. Dimmed, never disabled:
+   removing them from under a half-finished click is what made the search feel
+   unresponsive in the first place. */
+.card.is-stale { opacity: 0.5; transition: opacity var(--duration-fast) var(--ease-out); }
+.search-hit > div:first-child { flex: 1; min-inline-size: 0; }
+
+/* One chosen column in the Columns dialog: the label, and the controls that
+   move or remove it. */
+.column-row {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-sunken);
+    gap: var(--space-2);
+}
+
+/* ========================================================= filter builder == */
+
+.filter-builder { display: flex; flex-direction: column; gap: var(--space-3); }
+.filter-group {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    background: var(--color-bg-sunken);
+    display: flex; flex-direction: column; gap: var(--space-2);
+}
+.filter-row { display: grid; grid-template-columns: minmax(8rem, 1.2fr) minmax(7rem, 1fr) minmax(8rem, 1.4fr) auto; gap: var(--space-2); align-items: start; }
+.filter-joiner { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-fg-secondary); }
+.filter-unavailable {
+    margin-block-start: var(--space-2);
+    font-size: var(--text-xs); color: var(--color-fg-tertiary);
+    line-height: var(--leading-normal);
+}
+
+/* ================================================================ kanban == */
+
+/* The board owns the height it is given, not the height its cards happen to
+   need. A short pipeline used to leave the horizontal scrollbar floating
+   halfway up the screen -- it sat under the last card, with empty page beneath
+   it -- so the bar that scrolls the board is pinned to the bottom of the
+   viewport instead. The height is DEFINITE rather than a minimum, because a
+   column's `max-block-size: 100%` only resolves against a definite one. */
+.board-page { display: flex; flex-direction: column; block-size: 100%; }
+/* Takes the height left over, but never squeezes to nothing: on a short
+   window with a wrapped toolbar the page scrolls rather than the board
+   collapsing. */
+.board-page > .board { flex: 1 1 auto; min-block-size: 12rem; }
+
+.board {
+    display: flex;
+    gap: var(--space-3);
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-inline-size: 100%;
+    padding: var(--space-4);
+    align-items: start;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+}
+.board-column {
+    flex: 0 0 18rem;
+    min-height: 0;
+    min-block-size: 0;
+    background: var(--color-bg-sunken);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    /* Full height of the board, whatever the shell leaves it -- the old
+       `100vh - 12rem` guess was a chrome measurement that could be wrong. */
+    max-block-size: 100%;
+}
+.board-column.over { outline: 2px dashed var(--color-accent); outline-offset: 2px; }
+.board-column-header { padding: var(--space-3); border-block-end: 1px solid var(--color-border-subtle); flex: none; }
+.board-column-title { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.board-column-title .count { color: var(--color-fg-tertiary); font-weight: var(--weight-normal); }
+.board-column-totals { margin-block-start: var(--space-1); font-size: var(--text-xs); color: var(--color-fg-secondary); display: flex; flex-direction: column; gap: 0.1rem; }
+.board-cards {
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    overflow-y: auto;
+    min-height: 0;
+    min-block-size: 0;
+    flex: 1 1 auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+    -webkit-overflow-scrolling: touch;
+}
+
+.deal-card {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    cursor: grab;
+    box-shadow: var(--shadow-sm);
+    display: flex; flex-direction: column; gap: var(--space-1);
+    /* A draggable element consumes one-finger touches on a phone, which made the
+       board unscrollable without a second finger. pan-y gives the vertical
+       gesture back to the scroll container; the horizontal drag still starts. */
+    touch-action: pan-y;
+}
+.deal-card:hover { border-color: var(--color-border-default); }
+.deal-card.dragging { opacity: 0.4; }
+.deal-card .title { font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.deal-card .meta { font-size: var(--text-xs); color: var(--color-fg-tertiary); }
+.deal-card .values { display: flex; gap: var(--space-2); font-size: var(--text-xs); flex-wrap: wrap; }
+
+/* The long-press touch-drag ghost — see board.js's touchDragHandlers. Fixed
+   at the original card's position and moved with a transform as the finger
+   moves, so the column underneath never reflows mid-drag. */
+.deal-card-ghost {
+    position: fixed;
+    z-index: 200;
+    pointer-events: none;
+    box-shadow: var(--shadow-md);
+    transform-origin: top left;
+    opacity: 0.95;
+}
+/* While a touch drag is live, the page itself must not also scroll —
+   otherwise the board scrolls out from under the finger mid-drag. */
+body.board-touch-dragging { overflow: hidden; touch-action: none; }
+
+.wip-warning { font-size: var(--text-xs); color: var(--color-warning); }
+
+/* ============================================================== timeline == */
+
+.timeline { display: flex; flex-direction: column; }
+.timeline-day {
+    position: sticky; inset-block-start: 0; z-index: 1;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-bg-surface);
+    font-size: var(--text-xs); font-weight: var(--weight-semibold);
+    color: var(--color-fg-secondary);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    border-block-end: 1px solid var(--color-border-subtle);
+}
+.timeline-item {
+    display: grid;
+    grid-template-columns: 1.75rem 1fr;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-block-end: 1px solid var(--color-border-subtle);
+}
+.timeline-item:hover { background: var(--color-bg-hover); }
+.timeline-dot {
+    inline-size: 1.75rem; block-size: 1.75rem;
+    border-radius: var(--radius-full);
+    display: grid; place-items: center;
+    background: var(--color-info-subtle); color: var(--color-info);
+    font-size: var(--text-xs);
+}
+.timeline-dot.success { background: var(--color-success-subtle); color: var(--color-success); }
+.timeline-dot.warning { background: var(--color-warning-subtle); color: var(--color-warning); }
+.timeline-dot.accent { background: var(--color-accent-subtle); color: var(--color-accent); }
+.timeline-body { min-inline-size: 0; }
+.timeline-head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.timeline-subject { font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.timeline-meta { font-size: var(--text-xs); color: var(--color-fg-tertiary); }
+.timeline-text { font-size: var(--text-sm); color: var(--color-fg-secondary); margin-block-start: var(--space-1); white-space: pre-wrap; }
+/* A system entry is visibly not a human one — it cannot be edited, and it
+   should not invite the attempt. */
+.timeline-item.system .timeline-subject { font-weight: var(--weight-normal); color: var(--color-fg-secondary); }
+
+/* ========================================================= evidence card == */
+
+.evidence { display: flex; flex-direction: column; gap: var(--space-3); }
+.panel-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.panel {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+.panel-head {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-sunken);
+    font-size: var(--text-xs); font-weight: var(--weight-semibold);
+    display: flex; align-items: center; gap: var(--space-2);
+}
+.panel-head .used { font-weight: var(--weight-normal); color: var(--color-fg-tertiary); margin-inline-start: auto; }
+.panel-rows { display: flex; flex-direction: column; }
+.panel-row {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-sm);
+    border-block-start: 1px solid var(--color-border-subtle);
+}
+.panel-row .count { margin-inline-start: auto; font-variant-numeric: tabular-nums; color: var(--color-fg-secondary); }
+/* The rows a rule actually read, highlighted. This is the whole point of the
+   card: not "trust me", but "here is what it looked at". */
+.panel-row.used { background: var(--color-accent-subtle); }
+.panel-empty { padding: var(--space-3); font-size: var(--text-sm); color: var(--color-fg-tertiary); }
+
+.reason { display: flex; gap: var(--space-2); font-size: var(--text-sm); align-items: baseline; }
+.reason .tag { font-family: var(--font-mono); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.reason.pass .tag { color: var(--color-success); }
+.reason.fail .tag { color: var(--color-danger); }
+.reason.info .tag { color: var(--color-fg-tertiary); }
+
+/* ============================================================== overlays == */
+
+.overlay {
+    position: fixed; inset: 0;
+    background: rgba(16, 19, 23, 0.5);
+    display: grid; place-items: start center;
+    padding: var(--space-6) var(--space-4);
+    z-index: 50;
+    overflow-y: auto;
+    animation: fade var(--duration-fast) var(--ease-out);
+}
+@keyframes fade { from { opacity: 0; } }
+
+.modal {
+    inline-size: min(42rem, 100%);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    animation: rise var(--duration-normal) var(--ease-out);
+}
+.modal.wide { inline-size: min(60rem, 100%); }
+.modal.narrow { inline-size: min(28rem, 100%); }
+@keyframes rise { from { transform: translateY(0.75rem); opacity: 0; } }
+
+.modal-header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border-block-end: 1px solid var(--color-border-subtle); }
+.modal-header h2 { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.modal-body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); max-block-size: 70vh; overflow-y: auto; }
+.modal-footer { display: flex; gap: var(--space-2); justify-content: flex-end; padding: var(--space-4); border-block-start: 1px solid var(--color-border-subtle); }
+
+.palette { inline-size: min(38rem, 100%); }
+.palette input {
+    inline-size: 100%; padding: var(--space-4);
+    border: none; background: transparent;
+    font-size: var(--text-lg);
+    border-block-end: 1px solid var(--color-border-subtle);
+}
+.palette input:focus { outline: none; }
+.palette-results { max-block-size: 60vh; overflow-y: auto; padding: var(--space-2); }
+.palette-group-label { padding: var(--space-2) var(--space-3) var(--space-1); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-fg-tertiary); }
+.palette-item {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+.palette-item:hover, .palette-item.active { background: var(--color-bg-selected); }
+.palette-item .sub { font-size: var(--text-xs); color: var(--color-fg-tertiary); }
+
+.toasts { position: fixed; inset-block-end: var(--space-4); inset-inline-end: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); z-index: 100; }
+.toast {
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border-default);
+    border-inline-start: 3px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    font-size: var(--text-sm);
+    max-inline-size: 24rem;
+    animation: rise var(--duration-normal) var(--ease-out);
+}
+.toast.success { border-inline-start-color: var(--color-success); }
+.toast.error { border-inline-start-color: var(--color-danger); }
+/* Neither good nor bad news: a check that succeeded and still needs a human. */
+.toast.warning { border-inline-start-color: var(--color-warning); }
+
+/* ================================================================= states == */
+
+.empty, .error-state {
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+    padding: var(--space-10) var(--space-4);
+    text-align: center;
+    color: var(--color-fg-secondary);
+}
+.empty h3, .error-state h3 { font-size: var(--text-lg); color: var(--color-fg-primary); }
+.empty p, .error-state p { max-inline-size: 30rem; font-size: var(--text-sm); }
+
+.skeleton {
+    background: linear-gradient(90deg, var(--color-bg-sunken) 25%, var(--color-bg-hover) 50%, var(--color-bg-sunken) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite linear;
+    border-radius: var(--radius-sm);
+    block-size: 1rem;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
+.spinner {
+    inline-size: 1rem; block-size: 1rem;
+    border: 2px solid var(--color-border-default);
+    border-block-start-color: var(--color-accent);
+    border-radius: var(--radius-full);
+    animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.bar-track { block-size: 0.5rem; background: var(--color-bg-sunken); border-radius: var(--radius-full); overflow: hidden; }
+.bar-fill { block-size: 100%; border-radius: var(--radius-full); transition: inline-size var(--duration-normal) var(--ease-out); }
+
+.verdict-bar { display: flex; block-size: 1.5rem; border-radius: var(--radius-sm); overflow: hidden; background: var(--color-bg-sunken); }
+.verdict-bar > span {
+    display: grid; place-items: center;
+    font-size: var(--text-xs); font-weight: var(--weight-semibold);
+    color: var(--color-fg-on-accent);
+    min-inline-size: 0; overflow: hidden;
+}
+.verdict-bar > span[data-verdict="QUALIFIED"] { background: var(--color-verdict-qualified); }
+.verdict-bar > span[data-verdict="REVIEW"] { background: var(--color-verdict-review); }
+.verdict-bar > span[data-verdict="REJECTED"] { background: var(--color-verdict-rejected); }
+.verdict-bar > span[data-verdict="UNRESOLVED"] { background: var(--color-verdict-unresolved); }
+.verdict-bar > span[data-verdict="ERROR"] { background: var(--color-verdict-error); }
+
+.legend { display: flex; gap: var(--space-3); flex-wrap: wrap; font-size: var(--text-xs); }
+.legend-item { display: flex; align-items: center; gap: var(--space-1); }
+.legend-swatch { inline-size: 0.7rem; block-size: 0.7rem; border-radius: var(--radius-sm); }
+
+/* =============================================================== record == */
+
+.record-header {
+    padding: var(--space-5);
+    background: var(--color-bg-surface);
+    border-block-end: 1px solid var(--color-border-subtle);
+}
+.record-title { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.record-title h1 { font-size: var(--text-xl); font-weight: var(--weight-semibold); letter-spacing: -0.02em; }
+.record-sub { margin-block-start: var(--space-1); font-size: var(--text-sm); color: var(--color-fg-secondary); display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+.record-layout { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: var(--space-4); padding: var(--space-4); align-items: start; }
+
+.tabs { display: flex; gap: var(--space-1); border-block-end: 1px solid var(--color-border-subtle); padding-inline: var(--space-4); overflow-x: auto; overflow-y: hidden; }
+.tab {
+    padding: var(--space-3) var(--space-3);
+    font-size: var(--text-sm); color: var(--color-fg-secondary);
+    border: none; background: none; cursor: pointer;
+    border-block-end: 2px solid transparent;
+    margin-block-end: -1px; white-space: nowrap;
+}
+.tab:hover { color: var(--color-fg-primary); }
+.tab.active { color: var(--color-accent); border-block-end-color: var(--color-accent); font-weight: var(--weight-medium); }
+.tab .count { color: var(--color-fg-tertiary); font-size: var(--text-xs); margin-inline-start: var(--space-1); }
+
+/* ============================================================ settings ==== */
+
+/**
+ * The admin panel's own shell: a fixed nav rail naming every section beside
+ * the content, rather than a strip of tabs a person has to scroll through to
+ * see what else exists. An admin panel is a place with a map, not a place
+ * with a next button — seven sections read as seven at a glance here, where
+ * a tab strip read as "the current one, plus however many are off-screen."
+ */
+.settings-shell {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, 1fr);
+    gap: var(--space-6);
+    align-items: start;
+    padding: var(--space-5) var(--space-4) var(--space-10);
+    max-inline-size: 68rem;
+    margin-inline: auto;
+}
+.settings-nav {
+    position: sticky;
+    top: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.settings-nav-head { margin-block-end: var(--space-4); padding-inline-start: var(--space-3); }
+.settings-nav-head h1 { font-size: var(--text-xl); font-weight: var(--weight-semibold); letter-spacing: -0.02em; }
+.settings-nav-head p { font-size: var(--text-sm); color: var(--color-fg-secondary); margin-block-start: var(--space-1); }
+
+.settings-nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    border: none;
+    background: none;
+    color: var(--color-fg-secondary);
+    text-align: start;
+    cursor: pointer;
+    transition: background-color var(--duration-instant) var(--ease-out), color var(--duration-instant) var(--ease-out);
+}
+.settings-nav-item .icon { flex-shrink: 0; color: var(--color-fg-tertiary); }
+.settings-nav-item:hover { background: var(--color-bg-hover); color: var(--color-fg-primary); }
+.settings-nav-item:hover .icon { color: var(--color-fg-secondary); }
+.settings-nav-item.active { background: var(--color-accent-subtle); color: var(--color-accent); }
+.settings-nav-item.active .icon { color: var(--color-accent); }
+.settings-nav-label { font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-tight); }
+
+.settings-content { min-inline-size: 0; }
+.settings-content-head { margin-block-end: var(--space-5); }
+.settings-content-head h2 { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.settings-content-head p { font-size: var(--text-sm); color: var(--color-fg-secondary); margin-block-start: var(--space-1); max-inline-size: 38rem; }
+
+@media (max-width: 60rem) {
+    .settings-shell { grid-template-columns: minmax(0, 1fr); padding-inline: var(--space-3); }
+    .settings-nav {
+        position: static;
+        flex-direction: row;
+        gap: var(--space-1);
+        overflow-x: auto;
+        padding-block-end: var(--space-2);
+        border-block-end: 1px solid var(--color-border-subtle);
+        margin-block-end: var(--space-2);
+    }
+    .settings-nav-head { display: none; }
+    .settings-nav-item { flex-direction: column; gap: var(--space-1); padding: var(--space-2); white-space: nowrap; }
+    .settings-nav-label { font-size: var(--text-xs); }
+}
+
+/* ============================================================ calendar ==== */
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--color-border-subtle);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+.calendar-weekday {
+    background: var(--color-bg-sunken);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-fg-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: center;
+}
+.calendar-day {
+    background: var(--color-bg-surface);
+    min-block-size: 6.5rem;
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+.calendar-day.dim { background: var(--color-bg-sunken); }
+.calendar-day.dim .calendar-day-num { color: var(--color-fg-tertiary); }
+.calendar-day.today { background: var(--color-accent-subtle); }
+.calendar-day-num {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--color-fg-secondary);
+}
+.calendar-day.today .calendar-day-num { color: var(--color-accent); font-weight: var(--weight-semibold); }
+.calendar-day-events {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-inline-size: 0;
+}
+.calendar-event {
+    display: block;
+    font-size: var(--text-xs);
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+}
+.calendar-event.renewal { background: var(--color-warning-subtle); color: var(--color-warning); }
+.calendar-event.meeting { background: var(--color-accent-subtle); color: var(--color-accent); }
+
+@media (max-width: 48rem) {
+    .calendar-day { min-block-size: 4rem; }
+    .calendar-weekday { padding: var(--space-1); font-size: 0.65rem; }
+}
+
+/* ========================================================== segmented ==== */
+
+/**
+ * A set of stages you switch between, with the size of each one visible.
+ *
+ * Not tabs: tabs sit on a border and read as sections of a document. These are
+ * a filter over one list, and a segmented control says so — the group is one
+ * object with one lit segment. Not a dropdown either; see the note in
+ * pages/calling.js for why hiding the counts defeats the point.
+ */
+.segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--color-bg-sunken);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    max-inline-size: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.segment {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 0; background: transparent; cursor: pointer;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm); color: var(--color-fg-secondary);
+    white-space: nowrap;
+    transition: background var(--duration-instant), color var(--duration-instant);
+}
+.segment:hover { background: var(--color-bg-hover); color: var(--color-fg-primary); }
+
+/* The lit one is raised, not merely coloured — it is the surface you are on. */
+.segment.active {
+    background: var(--color-bg-surface);
+    color: var(--color-fg-primary);
+    font-weight: var(--weight-medium);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Tabular, so a count changing from 9 to 10 does not shift the label beside it. */
+.segment-count {
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    padding: 0.05em 0.45em;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-hover);
+    color: var(--color-fg-secondary);
+}
+.segment.active .segment-count { background: var(--color-accent-subtle); color: var(--color-accent); }
+
+/* Work whose follow-up date has already passed. Amber only while there IS
+   any — a stage that shouts when it is empty teaches people to ignore it. */
+.segment.due .icon { color: var(--color-warning); }
+.segment.due .segment-count { background: var(--color-warning-subtle); color: var(--color-warning); }
+
+.queue-header {
+    display: flex; align-items: center; gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+    border-block-end: 1px solid var(--color-border-subtle);
+}
+/* The person picker sizes to its content. A select left to its own devices
+   fills the row once the header wraps, which makes "Everyone" look like the
+   most important control on the screen. */
+.queue-header select { inline-size: auto; min-inline-size: 9rem; max-inline-size: 14rem; }
+
+.detail-list { display: grid; grid-template-columns: minmax(6rem, auto) 1fr; gap: var(--space-2) var(--space-3); font-size: var(--text-sm); align-items: baseline; }
+.detail-list dt { color: var(--color-fg-secondary); }
+.detail-list dd { margin: 0; overflow-wrap: anywhere; }
+
+.line-items { inline-size: 100%; font-size: var(--text-sm); border-collapse: collapse; }
+.line-items th { text-align: start; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-fg-secondary); padding: var(--space-2); border-block-end: 1px solid var(--color-border-default); }
+.line-items td { padding: var(--space-2); border-block-end: 1px solid var(--color-border-subtle); }
+.line-items td.num, .line-items th.num { text-align: end; font-variant-numeric: tabular-nums; }
+
+/* The derived figures. Two headline numbers, side by side, each labelled —
+   because there is no honest way to combine them into one. */
+.totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--space-3); }
+.total-cell { padding: var(--space-3); background: var(--color-bg-sunken); border-radius: var(--radius-md); }
+
+/* =============================================================== login === */
+
+.login-page { display: grid; place-items: center; min-block-size: 100%; padding: var(--space-4); background: var(--color-bg-canvas); }
+.login-card { inline-size: min(24rem, 100%); background: var(--color-bg-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm); }
+
+/* ========================================================== responsive === */
+
+.mobile-only { display: none; }
+
+@media (max-width: 60rem) {
+    .record-layout { grid-template-columns: minmax(0, 1fr); }
+    .grid > .span-3, .grid > .span-4, .grid > .span-6, .grid > .span-8 { grid-column: span 12; }
+}
+
+@media (max-width: 48rem) {
+    .mobile-only { display: inline-flex; }
+
+    .app { grid-template-columns: 1fr; }
+
+    /* The sidebar becomes a drawer. It is off-canvas rather than hidden, so it
+       keeps its scroll position and its focus order. */
+    .sidebar {
+        position: fixed; inset-block: 0; inset-inline-start: 0;
+        inline-size: min(17rem, 82vw);
+        z-index: 60;
+        transform: translateX(-100%);
+        transition: transform var(--duration-normal) var(--ease-out);
+        box-shadow: var(--shadow-lg);
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    .scrim { position: fixed; inset: 0; background: rgba(16, 19, 23, 0.45); z-index: 55; }
+
+    .content-inner { padding: var(--space-3); }
+    .topbar { padding-inline: var(--space-3); gap: var(--space-2); }
+    .topbar-title { font-size: var(--text-base); }
+    .search-trigger { inline-size: auto; flex: 1; }
+    .search-trigger .label, .search-trigger kbd { display: none; }
+
+    .record-layout { padding: var(--space-3); gap: var(--space-3); }
+    .record-header { padding: var(--space-4) var(--space-3); }
+
+    .filter-row { grid-template-columns: 1fr; }
+    .board { padding: var(--space-3); }
+    .board-column { flex-basis: 15rem; }
+
+    /* A data table on a phone scrolls horizontally inside its own container.
+       The page body must never scroll sideways. */
+    .table-wrap { margin-inline: calc(var(--space-3) * -1); padding-inline: var(--space-3); }
+    table.data td { max-inline-size: 14rem; }
+
+    /**
+     * THE DOCUMENT SCROLLS ON A PHONE, not a div inside it.
+     *
+     * The desktop shell pins .app to the viewport and makes .content the one
+     * scrolling box. Nested scrollers are where one-finger scrolling goes to
+     * die on mobile: a gesture landing on the wrong descendant (a sticky
+     * header, a horizontally-scrollable .table-wrap with overscroll-behavior,
+     * a draggable card) resolves to the wrong container or to nothing, and the
+     * only gesture left that always works is a second finger — which is
+     * exactly the two-finger scroll being worked around by hand.
+     *
+     * So on small screens the shell un-pins: html/body/.app/.main grow to
+     * their content, .content stops clipping, and the browser's own document
+     * scroller takes over — the one surface every mobile browser scrolls
+     * flawlessly with one finger. Inner scrollers that still make sense (the
+     * horizontal .table-wrap, the drawer) keep their own overflow.
+     */
+    html, body { height: auto; }
+    #root { height: auto; }
+    .app { display: block; height: auto; }
+    .main { display: block; overflow: visible; }
+    .content { overflow: visible; overscroll-behavior: none; }
+    .topbar {
+        position: sticky; inset-block-start: 0; z-index: 40;
+        background: var(--color-bg-canvas);
+    }
+
+    .modal, .modal.wide, .modal.narrow { inline-size: 100%; }
+
+    /**
+     * A bottom-anchored sheet on a phone, and the two things that made its last
+     * row unreachable.
+     *
+     * `inset: 0` is the LARGE viewport on mobile — the height the page has when
+     * the address bar is retracted, which it usually is not. So the bottom of
+     * the overlay sat behind the browser's own chrome. `100dvh` is the height
+     * actually on screen, and with top and height both set the bottom offset is
+     * ignored, which is what we want.
+     *
+     * `env(safe-area-inset-bottom)` is the rest of it: the home indicator on a
+     * gesture-navigation phone covers a strip that is inside the viewport and
+     * still not touchable.
+     *
+     * The symptom was that Delete "isn't there" — it is the last item in the
+     * Actions menu, which has no footer under it, so it was the row that landed
+     * in the covered strip every time.
+     */
+    .overlay {
+        place-items: end center;
+        block-size: 100dvh;
+        padding: var(--space-3);
+        padding-block-end: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    }
+    .modal-body { max-block-size: 65vh; }
+
+    .toasts { inset-inline: var(--space-3); }
+    .toast { max-inline-size: none; }
+
+    .detail-list { grid-template-columns: 1fr; gap: var(--space-1); }
+    .detail-list dt { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; }
+    .detail-list dd { margin-block-end: var(--space-2); }
+}
+
+@media print {
+    .sidebar, .topbar, .toolbar, .bulk-bar, .toasts { display: none; }
+    .app { grid-template-columns: 1fr; }
+    .card { break-inside: avoid; border-color: #ccc; }
+}
+
+/* ============================================================ cold calling = */
+/*
+ * The SDR workspace. Wide margins, one thing in the middle, and nothing
+ * competing with it — this screen is used forty times a day and every element
+ * that is not the contact, the outcome or the note is in the way.
+ */
+/**
+ * The call console is a reading measure. 52rem is about as wide as a person
+ * can track a line of text without losing their place, and the console is one
+ * contact and one note box read while talking to somebody.
+ */
+.calling {
+    max-inline-size: 52rem;
+    margin-inline: auto;
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+/**
+ * The queue is a grid, and takes the room a grid needs.
+ *
+ * Same wrapper, so it inherited the console's reading measure and squeezed a
+ * seven-column table into 832px on a 1520px screen — which meant adding a
+ * column narrowed the six already there rather than using the empty half of
+ * the window, and enough columns produced a scrollbar with the space to solve
+ * it sitting unused alongside. 100rem matches `.content-inner`, so the queue
+ * is now as wide as every other list in the product.
+ */
+.calling.calling-wide { max-inline-size: 100rem; }
+
+.calling-header { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.calling-header h1 { font-size: var(--text-xl); letter-spacing: -0.01em; }
+
+.calling-stats { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+.calling-stat { display: flex; flex-direction: column; }
+.calling-stat-value { font-size: var(--text-lg); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.calling-stat-label { font-size: var(--text-xs); color: var(--color-fg-tertiary); }
+
+/* Prev/Next browsing — its own bar, separate from the outcome buttons and
+   Save & Next further down, so the two actions never look like one control. */
+.calling-nav {
+    padding-block-end: var(--space-2);
+    margin-block-end: var(--space-1);
+    border-block-end: 1px solid var(--color-border-subtle);
+}
+.calling-nav-btn {
+    inline-size: 2.25rem;
+    block-size: 2.25rem;
+    padding: 0;
+    border-radius: var(--radius-full);
+    border-color: var(--color-border-default);
+    color: var(--color-fg-secondary);
+}
+.calling-nav-btn:hover:not(:disabled) {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: var(--color-bg-hover);
+}
+
+.calling-who h2 { font-size: var(--text-2xl, 1.5rem); letter-spacing: -0.02em; }
+.calling-contact { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-block-start: var(--space-2); }
+
+/* The number is the largest interactive thing on the screen, because ringing it
+   is the point of the page. */
+.calling-phone {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+.calling-outcomes { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.calling-outcome { min-block-size: 2.5rem; }
+
+/* Comfortable for one to three sentences, and no larger — it is a note, not a
+   document, and a big empty box invites a big empty pause. */
+.calling-note { min-block-size: 4.5rem; resize: vertical; inline-size: 100%; }
+
+.calling-save { min-block-size: 2.75rem; padding-inline: var(--space-5); }
+
+/* A pointer to another record, shown as the thing it is rather than as a bare
+   link in a list of fields. Used where one record's whole meaning depends on
+   another — an agreement and the deal it closes. */
+.linked-record {
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-bg-sunken);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+}
+.linked-record a.strong { font-weight: var(--weight-semibold); }
+
+/* A date box that can be typed into, with the calendar one click away.
+   The native picker sits invisibly over the calendar button, so the click
+   that opens it is real, and it is never the thing anybody types into. */
+.date-field { display: flex; gap: var(--space-2); align-items: center; }
+.date-field .date-text { flex: 1 1 auto; min-inline-size: 0; }
+.date-field .date-time { flex: 0 0 auto; }
+.date-picker-wrap { position: relative; flex: 0 0 auto; display: inline-flex; }
+.date-picker-button {
+    padding-inline: var(--space-2);
+    line-height: 1;
+}
+/* Laid directly over the button, not shrunk to a 1px proxy: a mouse click
+   needs to land on the real input for the browser to treat opening its
+   picker as a genuine, trusted click rather than a script-triggered one
+   (see the comment beside `picker` in components.js for why that matters). */
+.date-picker-native {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    border: 0;
+    padding: 0;
+}
+/* Chromium only opens the native picker when the click lands on its own
+   calendar-icon glyph, which it renders at the input's far-right edge — not
+   on the mm/dd/yyyy segment area the cursor implies is clickable everywhere.
+   Stretching the indicator itself to fill the box makes the whole button a
+   real click target instead of a sliver of it. */
+.date-picker-native::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* Where a lead stands in its four-step follow-up sequence. Reads as a strip
+   rather than a card: it is context for the decision below it, not a section. */
+.calling-sequence {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--color-bg-sunken);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+}
+.calling-sequence-steps { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.calling-sequence-step {
+    font-size: var(--text-xs);
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    color: var(--color-fg-tertiary);
+    white-space: nowrap;
+}
+/* Done is settled, current is the one to act on. Everything else is neither,
+   and colouring all four would make the one that matters no easier to find. */
+.calling-sequence-step.done { color: var(--color-success); border-color: var(--color-success); }
+.calling-sequence-step.current { color: var(--color-fg-primary); border-color: var(--color-accent); font-weight: var(--weight-semibold); }
+
+.calling-history { border-block-start: 1px solid var(--color-border-subtle); padding: var(--space-3) var(--space-4); }
+.calling-history summary { cursor: pointer; font-size: var(--text-sm); color: var(--color-fg-secondary); }
+.calling-history-row { padding-block: var(--space-2); border-block-start: 1px solid var(--color-border-subtle); }
+.calling-history-row:first-child { border-block-start: 0; }
+
+@media (max-width: 640px) {
+    .calling { padding: var(--space-3); }
+    .calling-stats { gap: var(--space-3); }
+    .calling-outcome { flex: 1 1 8rem; }
+}
+
+/* ── The year, quarter by quarter, on a deal ────────────────────────────────
+ *
+ * Four cells that wrap to two on a narrow card rather than scrolling, because
+ * this is four short figures and a horizontal scrollbar for four figures is a
+ * worse answer than a second row. A quarter with no price is dimmed rather
+ * than omitted — the gap before a deal was priced is information, and closing
+ * it up would make Q3 look like the year's first quarter.
+ */
+.quarter-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: var(--space-2);
+}
+
+.quarter-cell {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-sunken);
+    min-inline-size: 0;
+}
+
+.quarter-cell.empty {
+    background: transparent;
+    border-style: dashed;
+    color: var(--color-fg-tertiary);
+}
+
+/* ==================================================== design system v2 ==== */
+/* Density: two card sizes so surfaces stop inventing their own paddings.
+   `comfortable` is the record/dashboard default; `compact` for operational
+   screens (calling queue, tables-in-cards). */
+:root {
+    --pad-card: var(--space-4);
+    --pad-card-compact: var(--space-3);
+    --control-h: 2.4rem;
+}
+
+.card.compact { --pad-card: var(--pad-card-compact); }
+.card > .card-body { padding: var(--pad-card); }
+
+/* Drawer — side sheet >=60rem, bottom sheet below (overlay already is). */
+.drawer {
+    position: fixed; inset-block: 0; inset-inline-end: 0;
+    inline-size: min(34rem, 100vw);
+    background: var(--color-bg-surface);
+    border-inline-start: 1px solid var(--color-border-subtle);
+    box-shadow: var(--shadow-lg);
+    z-index: 70;
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform var(--duration-normal) var(--ease-out);
+}
+.drawer.open { transform: translateX(0); }
+.drawer-header {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-4);
+    border-block-end: 1px solid var(--color-border-subtle);
+    min-height: var(--header-height);
+}
+.drawer-header h2 { font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: -0.01em; }
+.drawer-body { padding: var(--space-4); overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+.drawer-footer {
+    display: flex; gap: var(--space-2); justify-content: flex-end;
+    padding: var(--space-4);
+    border-block-start: 1px solid var(--color-border-subtle);
+}
+[dir='rtl'] .drawer { transform: translateX(-100%); }
+[dir='rtl'] .drawer.open { transform: translateX(0); }
+
+@media (max-width: 60rem) {
+    .drawer {
+        inset: auto 0 0 0; inset-inline: 0; inset-block-start: auto;
+        inline-size: 100%; max-block-size: 88dvh;
+        border-inline-start: none;
+        border-block-start: 1px solid var(--color-border-subtle);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        transform: translateY(100%);
+    }
+    .drawer.open { transform: translateY(0); }
+    .drawer-body { max-block-size: 60dvh; }
+}
+
+/* Attention band — the dashboard answers "what needs me" before anything else. */
+.attention-band { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--space-3); }
+.attention-item {
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+}
+.attention-item:hover { border-color: var(--color-border-default); text-decoration: none; }
+.attention-count { font-size: var(--text-xl); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; }
+.attention-item.hot .attention-count { color: var(--color-danger); }
+.attention-item.good .attention-count { color: var(--color-success); }
+.attention-label { font-size: var(--text-xs); color: var(--color-fg-secondary); line-height: 1.3; }
+
+/* Skip link — first Tab press on any page. */
+.skip-link {
+    position: absolute; inset-inline-start: var(--space-2); inset-block-start: calc(-1 * var(--space-10, 3rem));
+    z-index: 200;
+    background: var(--color-accent); color: var(--color-fg-on-accent);
+    padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+    transition: inset-block-start var(--duration-fast) ease;
+}
+.skip-link:focus-visible { inset-block-start: var(--space-2); }
+
+/* Outcome buttons: label + consequence subtitle. */
+.calling-outcome { flex-direction: column; gap: 0.1rem; align-items: center; }
+.calling-outcome .sub { display: block; font-size: 0.68rem; font-weight: var(--weight-normal); opacity: 0.75; line-height: 1.15; }
+
+/* Tablet layer: the dead zone between phone-stacked and full desktop. */
+@media (max-width: 75rem) and (min-width: 60.01rem) {
+    :root { --sidebar-width: 13rem; }
+    .record-layout { grid-template-columns: minmax(0, 1fr); }
+    .record-layout .side-panel { margin-block-start: var(--space-4); }
+    .stat-grid, .totals-grid, .attention-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .content-inner { padding-inline: var(--space-4); }
+}

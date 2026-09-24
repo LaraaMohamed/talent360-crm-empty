@@ -1,0 +1,6 @@
+{
+  "name": "Talent 360 CRM",
+  "description": "Comprehensive CRM and commercial platform for Talent 360",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: talent360-crm
+    runtime: node
+    plan: free
+    # Same region as the Turso database (aws-us-east-2 is AWS Ohio). Every
+    # statement the CRM runs is a round trip to it, so this is not a detail:
+    # co-located it is a few milliseconds, across the country it is forty, and
+    # a page that runs thirty statements pays it thirty times.
+    region: ohio
+    buildCommand: npm install
+    startCommand: node server.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: TURSO_URL
+        value: libsql://crm-laraamohamed.aws-us-east-2.turso.io
+      # Set in the Render dashboard, never here.
+      - key: TURSO_TOKEN
+        sync: false
+      - key: HOST
+        value: 0.0.0.0
+      - key: CRM_TRUST_PROXY
+        value: "1"
+      # Render terminates TLS and is only ever reached over HTTPS, so the
+      # session cookie is always Secure.
+      - key: CRM_SECURE_COOKIES
+        value: "1"
+      # Guards POST /api/setup, which is otherwise a public endpoint that hands
+      # ownership of an empty CRM to whoever calls it first. Set in the
+      # dashboard, or leave unset once the admin user exists.
+      - key: CRM_SETUP_TOKEN
+        sync: false

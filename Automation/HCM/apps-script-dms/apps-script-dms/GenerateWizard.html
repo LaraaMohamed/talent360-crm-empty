@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include_('Styles'); ?>
+</head>
+<body>
+  <div class="step-list">
+    <div class="step-dot active" id="dot1"></div>
+    <div class="step-dot" id="dot2"></div>
+    <div class="step-dot" id="dot3"></div>
+  </div>
+
+  <div id="errorBox" class="error-box" style="display:none;"></div>
+
+  <!-- Step 1: choose document type -->
+  <div id="step1">
+    <h1 id="step1Title">Generate Document</h1>
+    <p class="dek" id="step1Dek">Loading…</p>
+    <div id="docTypeChoices"></div>
+  </div>
+
+  <!-- Step 2: dynamic form -->
+  <div id="step2" style="display:none;">
+    <h1 id="step2Title"></h1>
+    <p class="dek">Only the fields this template needs are shown below.</p>
+    <div id="serviceSection" style="display:none;">
+      <h2>HCM Services</h2>
+      <p class="hint" style="margin-bottom:8px;">Shared with the HCM Agreement for this Opportunity — unchecking a service here removes it from both.</p>
+      <div id="serviceList"></div>
+      <div style="height:16px;"></div>
+    </div>
+    <div id="fieldList"></div>
+    <div class="btn-row split">
+      <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
+      <button class="btn btn-primary" id="generateBtn" onclick="submitGeneration()">Generate</button>
+    </div>
+  </div>
+
+  <!-- Step 3: result -->
+  <div id="step3" style="display:none;">
+    <div class="success-box">
+      <div class="check">✓</div>
+      <h1 id="resultTitle">Document Generated</h1>
+      <p class="dek" id="resultSub"></p>
+      <p><a id="resultLink" href="#" target="_blank" rel="noopener"></a></p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="google.script.host.close()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    var state = { opportunityId: null, product: null, docTypes: [], currentDocType: null, schema: null };
+
+    function showError(msg) {
+      var box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+    function clearError() { document.getElementById('errorBox').style.display = 'none'; }
+
+    function goToStep(n) {
+      clearError();
+      [1, 2, 3].forEach(function (i) {
+        document.getElementById('step' + i).style.display = (i === n) ? 'block' : 'none';
+        var dot = document.getElementById('dot' + i);
+        dot.className = 'step-dot' + (i < n ? ' done' : (i === n ? ' active' : ''));
+      });
+    }
+
+    // ---- Step 1 ----
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res.ok) { showError(res.error); return; }
+      state.opportunityId = res.data.opportunityId;
+      state.product = res.data.product;
+      state.docTypes = res.data.docTypes;
+
+      document.getElementById('step1Title').textContent = 'Generate Document — ' + res.data.company;
+      document.getElementById('step1Dek').textContent = res.data.product + ' Opportunity (' + res.data.opportunityId + ') — choose what to generate:';
+
+      var container = document.getElementById('docTypeChoices');
+      container.innerHTML = '';
+      res.data.docTypes.forEach(function (dt) {
+        var btn = document.createElement('button');
+        btn.className = 'doctype-choice';
+        btn.innerHTML = '<div class="title">' + dt.label + '</div><div class="sub">' + (dt.key.indexOf('AGREEMENT') !== -1 ? 'Legal agreement document' : 'Commercial proposal document') + '</div>';
+        btn.onclick = function () { loadStep2(dt.key); };
+        container.appendChild(btn);
+      });
+    }).ui_getWizardInitData();
+
+    // ---- Step 2 ----
+    function loadStep2(docTypeKey) {
+      clearError();
+      state.currentDocType = docTypeKey;
+      google.script.run.withSuccessHandler(function (res) {
+        if (!res.ok) { showError(res.error); return; }
+        state.schema = res.data;
+        renderStep2();
+        goToStep(2);
+      }).ui_getDocTypeFormSchema(state.opportunityId, docTypeKey);
+    }
+
+    function renderStep2() {
+      var schema = state.schema;
+      document.getElementById('step2Title').textContent = schema.label;
+
+      var svcSection = document.getElementById('serviceSection');
+      var svcList = document.getElementById('serviceList');
+      svcList.innerHTML = '';
+      if (schema.hasServiceSelection) {
+        svcSection.style.display = 'block';
+        schema.serviceSelection.forEach(function (svc) {
+          var row = document.createElement('label');
+          row.className = 'service-row';
+          row.innerHTML = '<input type="checkbox" data-svc-key="' + svc.key + '" ' + (svc.enabled ? 'checked' : '') + '> ' + svc.label;
+          svcList.appendChild(row);
+        });
+      } else {
+        svcSection.style.display = 'none';
+      }
+
+      var fieldList = document.getElementById('fieldList');
+      fieldList.innerHTML = '';
+      schema.fields.forEach(function (f) {
+        var wrap = document.createElement('div');
+        wrap.className = 'field';
+        var value = (schema.latestValues[f.key] !== undefined) ? schema.latestValues[f.key] : f.defaultValue;
+        var inputHtml;
+        if (f.type === 'textarea') {
+          inputHtml = '<textarea data-field-key="' + f.key + '">' + escapeHtml(value) + '</textarea>';
+        } else {
+          var inputType = (f.type === 'number') ? 'number' : (f.type === 'date' ? 'date' : 'text');
+          inputHtml = '<input type="' + inputType + '" data-field-key="' + f.key + '" value="' + escapeHtml(value) + '">';
+        }
+        wrap.innerHTML = '<label>' + f.label + (f.required ? ' <span class="required-mark">*</span>' : '') + '</label>' + inputHtml;
+        fieldList.appendChild(wrap);
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ---- Step 3 ----
+    function submitGeneration() {
+      clearError();
+      var btn = document.getElementById('generateBtn');
+      var fieldValues = {};
+      document.querySelectorAll('[data-field-key]').forEach(function (el) {
+        fieldValues[el.getAttribute('data-field-key')] = el.value;
+      });
+      var serviceMap = null;
+      if (state.schema.hasServiceSelection) {
+        serviceMap = {};
+        document.querySelectorAll('[data-svc-key]').forEach(function (el) {
+          serviceMap[el.getAttribute('data-svc-key')] = el.checked;
+        });
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Generating…';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          btn.textContent = 'Generate';
+          if (!res.ok) { showError(res.error); return; }
+          document.getElementById('resultSub').textContent = state.schema.label + ' — version ' + res.data.version;
+          var link = document.getElementById('resultLink');
+          link.href = res.data.url;
+          link.textContent = res.data.url;
+          goToStep(3);
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Generate';
+          showError(err.message || String(err));
+        })
+        .ui_submitGenerateDocument(state.opportunityId, state.currentDocType, fieldValues, serviceMap);
+    }
+  </script>
+</body>
+</html>

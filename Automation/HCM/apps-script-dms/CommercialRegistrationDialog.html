@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include_('Styles'); ?>
+  <?!= include_('CrImportPartial'); ?>
+</head>
+<body>
+  <h1 id="title">Import Commercial Registration</h1>
+  <p class="dek" id="sub">Loading…</p>
+
+  <div id="bootError" class="error-box" style="display:none;"></div>
+  <div id="crHost"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="google.script.host.close()">Close</button>
+  </div>
+
+  <script>
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res.ok) {
+        var b = document.getElementById('bootError');
+        b.textContent = res.error;
+        b.style.display = 'block';
+        document.getElementById('sub').textContent = '';
+        return;
+      }
+      document.getElementById('title').textContent = 'Commercial Registration — ' + res.data.company;
+      document.getElementById('sub').textContent = res.data.opportunityId;
+
+      CrImport.mount({
+        containerId: 'crHost',
+        opportunityId: res.data.opportunityId,
+        existing: res.data.existing,
+        onSaved: function () { google.script.host.close(); }
+      });
+    }).ui_getCrInitData(null);
+  </script>
+</body>
+</html>

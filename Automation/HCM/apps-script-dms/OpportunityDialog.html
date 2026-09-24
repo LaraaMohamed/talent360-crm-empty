@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include_('Styles'); ?>
+</head>
+<body>
+  <h1>New Opportunity</h1>
+  <p class="dek">Company and Product are required. Everything else can be filled in later.</p>
+
+  <div id="errorBox" class="error-box" style="display:none;"></div>
+
+  <div class="field">
+    <label>Company <span class="required-mark">*</span></label>
+    <input type="text" id="company" placeholder="e.g. Acme Corp">
+  </div>
+  <div class="field">
+    <label>Primary Contact</label>
+    <input type="text" id="contact" placeholder="Name">
+  </div>
+  <div class="field">
+    <label>Product <span class="required-mark">*</span></label>
+    <select id="product">
+      <option value="">Select…</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Owner</label>
+    <input type="text" id="owner" placeholder="you@talent-360.me">
+  </div>
+  <div class="field">
+    <label>Notes</label>
+    <textarea id="notes" placeholder="Optional"></textarea>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="google.script.host.close()">Cancel</button>
+    <button class="btn btn-primary" id="submitBtn" onclick="submit()">Create Opportunity</button>
+  </div>
+
+  <script>
+    function showError(msg) {
+      var box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res.ok) { showError(res.error); return; }
+      var sel = document.getElementById('product');
+      res.data.products.forEach(function (p) {
+        var opt = document.createElement('option');
+        opt.value = p; opt.textContent = p;
+        sel.appendChild(opt);
+      });
+      document.getElementById('owner').value = res.data.defaultOwner || '';
+    }).ui_getNewOpportunityInitData();
+
+    function submit() {
+      var btn = document.getElementById('submitBtn');
+      var formData = {
+        company: document.getElementById('company').value,
+        contact: document.getElementById('contact').value,
+        product: document.getElementById('product').value,
+        owner: document.getElementById('owner').value,
+        notes: document.getElementById('notes').value
+      };
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Creating…';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.ok) {
+            showError(res.error);
+            btn.disabled = false;
+            btn.textContent = 'Create Opportunity';
+            return;
+          }
+          google.script.host.close();
+        })
+        .withFailureHandler(function (err) {
+          showError(err.message || String(err));
+          btn.disabled = false;
+          btn.textContent = 'Create Opportunity';
+        })
+        .ui_submitNewOpportunity(formData);
+    }
+  </script>
+</body>
+</html>

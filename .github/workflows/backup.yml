@@ -1,0 +1,61 @@
+name: Database backup
+
+# Nothing on Render backs up the live Turso database — the only backup pipeline
+# in this repo (deploy/crm-backup.timer -> backup-to-gcs.sh) runs on the Doha VM,
+# which has never actually been provisioned. This workflow is what makes a
+# backup happen for real, on a schedule, without depending on that VM existing.
+#
+# pull-from-turso.mjs already does the hard part: it takes a snapshot, checks it
+# with PRAGMA foreign_key_check and integrity_check, compares row counts against
+# the live database, and deletes the file instead of keeping something unverified.
+# This workflow's only job is to run that on a timer and keep the verified
+# result somewhere that isn't Render's disk.
+#
+# One-time setup required before this can run (see docs/07-operations.md):
+#   Settings -> Secrets and variables -> Actions -> New repository secret
+#     TURSO_URL    (same value as in data/turso.env / the Render dashboard)
+#     TURSO_TOKEN  (same value as in data/turso.env / the Render dashboard)
+
+on:
+  schedule:
+    # 03:00 UTC daily - outside business hours in Cairo/Riyadh.
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Pull and verify a snapshot of the live database
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+        run: node pull-from-turso.mjs
+
+      # pull-from-turso.mjs exits non-zero and deletes its own output if
+      # verification fails, so this step only runs when there is a genuinely
+      # good snapshot to keep. A failed run fails this workflow, and GitHub
+      # emails the repo's admins about a failed scheduled workflow by default -
+      # that is the alerting for "the backup didn't happen last night."
+      - name: Upload the verified snapshot
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crm-backup-${{ github.run_id }}
+          path: |
+            data/backups/*.db
+            data/storage/**
+          retention-days: 35
+          if-no-files-found: error

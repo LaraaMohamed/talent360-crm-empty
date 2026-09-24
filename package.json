@@ -1,0 +1,21 @@
+{
+  "name": "t360-crm",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CRM core built around the LinkedIn qualification engine. Zero runtime dependencies.",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "build": "node test.mjs",
+    "lint": "node test.mjs",
+    "collect": "node --env-file=data/turso.env server.mjs",
+    "setup": "node setup.mjs",
+    "import": "node import-snapshots.mjs",
+    "backup": "node backup-db.mjs",
+    "test": "node test.mjs"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "crm",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.mjs"],
+      "port": 5180
+    },
+    {
+      "name": "crm-verify",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.mjs"],
+      "autoPort": true,
+      "port": 5190
+    }
+  ]
+}

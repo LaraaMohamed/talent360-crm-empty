@@ -1,0 +1,45 @@
+# /etc/systemd/system/crm.service
+#
+# The database and the documents live on the SEPARATE data disk, not in the
+# checkout. `git pull` on /srv/crm must never be able to touch either of them,
+# and the VM must be rebuildable without going near the customer data.
+
+[Unit]
+Description=Talent 360 CRM
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=crm
+Group=crm
+WorkingDirectory=/srv/crm
+ExecStart=/usr/bin/node server.mjs
+Restart=always
+RestartSec=3
+
+# Bound to loopback. nginx is the only thing that can reach it, which is what
+# makes the single open firewall port the whole attack surface.
+Environment=HOST=127.0.0.1
+Environment=PORT=5180
+
+# The header is only trusted BECAUSE of this flag, and nginx below really does
+# set it. Setting one without the other is how every write starts failing the
+# CSRF check, or how the app starts believing an attacker's X-Forwarded-Proto.
+Environment=CRM_TRUST_PROXY=1
+Environment=CRM_SECURE_COOKIES=1
+
+Environment=CRM_DB=/srv/crm-data/db/crm.db
+Environment=CRM_STORAGE=/srv/crm-data/storage
+Environment=CRM_BACKUP_DIR=/srv/crm-data/backups
+Environment=CRM_BACKUP_KEEP=14
+
+# The process needs its own data and nothing else on the machine.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/crm-data
+
+[Install]
+WantedBy=multi-user.target

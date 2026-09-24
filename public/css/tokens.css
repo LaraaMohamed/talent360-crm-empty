@@ -1,0 +1,234 @@
+﻿/**
+ * Design tokens.
+ *
+ * Rules that outrank taste, from docs/07_DESIGN_SYSTEM.md:
+ *   1. Tokens only â€” no raw hex, px or ms in a component.
+ *   2. Logical properties only â€” margin-inline-start, never margin-left.
+ *   3. Both themes, always.
+ *   4. Semantic names â€” --color-danger, not --color-red.
+ *   5. Contrast is a constraint: 4.5:1 text, 3:1 boundaries.
+ */
+
+:root {
+    color-scheme: light dark;
+
+    /* ---- surfaces ---- */
+    --color-bg-canvas: #f7f8fa;
+    --color-bg-surface: #ffffff;
+    --color-bg-raised: #ffffff;
+    --color-bg-sunken: #eef0f4;
+    --color-bg-hover: #f2f4f7;
+    --color-bg-selected: #e8f0fb;
+
+    /* ---- text ---- */
+    --color-fg-primary: #16191d;
+    --color-fg-secondary: #5b6472;
+    --color-fg-tertiary: #8b95a3;
+    --color-fg-on-accent: #ffffff;
+
+    /* ---- lines ---- */
+    --color-border-subtle: #eaecf0;
+    --color-border-default: #d7dbe1;
+    --color-border-strong: #9aa4b2;
+
+    /* ---- meaning ---- */
+    --color-accent: #1a5fb4;
+    --color-accent-hover: #164e93;
+    --color-accent-subtle: #e8f0fb;
+    --color-success: #10673a;
+    --color-success-subtle: #e3f5ea;
+    --color-warning: #8a5300;
+    --color-warning-subtle: #fdf1dc;
+    --color-danger: #a52020;
+    --color-danger-subtle: #fceaea;
+    --color-info: #475467;
+    --color-info-subtle: #eef0f4;
+
+    /**
+     * Verdict colours are INDEPENDENT tokens, not aliases of the semantic
+     * palette. A workspace re-branding to a green accent must not drag
+     * QUALIFIED with it, and REJECTED must never be able to look like
+     * QUALIFIED. This is the one distinction in the product a user cannot
+     * afford to misread.
+     *
+     * REVIEW is amber, not grey. Grey reads as "ignore me", and the entire
+     * argument for three verdicts is that REVIEW deserves attention.
+     */
+    --color-verdict-qualified: #10673a;
+    --color-verdict-qualified-bg: #e3f5ea;
+    --color-verdict-review: #8a5300;
+    --color-verdict-review-bg: #fdf1dc;
+    --color-verdict-rejected: #a52020;
+    --color-verdict-rejected-bg: #fceaea;
+    --color-verdict-unresolved: #5b6472;
+    --color-verdict-unresolved-bg: #eef0f4;
+    --color-verdict-error: #6b21a8;
+    --color-verdict-error-bg: #f4ebfd;
+
+    /* ---- type ---- */
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Arabic",
+        "Segoe UI Historic", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+
+    /* 14px base, 13px in tables. Sales tools are read for hours in dense grids;
+       a 16px body is a marketing-site default that wastes a third of the row. */
+    --text-xs: 0.75rem;
+    --text-sm: 0.8125rem;
+    --text-base: 0.875rem;
+    --text-lg: 1rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+    --text-3xl: 1.875rem;
+
+    --leading-tight: 1.25;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.65;
+
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+--weight-bold: 700;
+
+    /* ---- space: 4px grid, everything a multiple ---- */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
+    --space-8: 3rem;
+    --space-10: 4rem;
+
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 10px;
+    --radius-full: 999px;
+
+    /* Shadows are for ELEVATION, not decoration. A table row has none; a
+       dropdown floating above it does. */
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.06);
+    --shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.14), 0 2px 8px rgba(16, 24, 40, 0.08);
+
+    /* Nothing exceeds 200ms. Above that an interface feels like it is thinking. */
+    --duration-instant: 100ms;
+    --duration-fast: 150ms;
+    --duration-normal: 200ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+    --sidebar-width: 15rem;
+    --header-height: 3.5rem;
+}
+
+/* Dark is NOT inverted light: surfaces get lighter with elevation, saturation
+   drops, and neither pure black nor pure white appears. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --color-bg-canvas: #101317;
+        --color-bg-surface: #171b21;
+        --color-bg-raised: #1e232a;
+        --color-bg-sunken: #0c0f12;
+        --color-bg-hover: #21262e;
+        --color-bg-selected: #1b2b41;
+
+        --color-fg-primary: #e6e9ee;
+        --color-fg-secondary: #9aa4b2;
+        --color-fg-tertiary: #6b7686;
+        --color-fg-on-accent: #ffffff;
+
+        --color-border-subtle: #242a32;
+        --color-border-default: #333b45;
+        --color-border-strong: #5b6472;
+
+        --color-accent: #5ea1f0;
+        --color-accent-hover: #7db4f4;
+        --color-accent-subtle: #17273a;
+        --color-success: #4ec27f;
+        --color-success-subtle: #12281d;
+        --color-warning: #e0a94a;
+        --color-warning-subtle: #2b2213;
+        --color-danger: #f07171;
+        --color-danger-subtle: #2e1719;
+        --color-info: #9aa4b2;
+        --color-info-subtle: #1e232a;
+
+        --color-verdict-qualified: #4ec27f;
+        --color-verdict-qualified-bg: #12281d;
+        --color-verdict-review: #e0a94a;
+        --color-verdict-review-bg: #2b2213;
+        --color-verdict-rejected: #f07171;
+        --color-verdict-rejected-bg: #2e1719;
+        --color-verdict-unresolved: #9aa4b2;
+        --color-verdict-unresolved-bg: #1e232a;
+        --color-verdict-error: #c084fc;
+        --color-verdict-error-bg: #241a33;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+}
+
+/* The explicit override, so a user can pick a theme against their OS. */
+:root[data-theme="dark"] {
+    --color-bg-canvas: #101317;
+    --color-bg-surface: #171b21;
+    --color-bg-raised: #1e232a;
+    --color-bg-sunken: #0c0f12;
+    --color-bg-hover: #21262e;
+    --color-bg-selected: #1b2b41;
+
+    --color-fg-primary: #e6e9ee;
+    --color-fg-secondary: #9aa4b2;
+    --color-fg-tertiary: #6b7686;
+    --color-fg-on-accent: #ffffff;
+
+    --color-border-subtle: #242a32;
+    --color-border-default: #333b45;
+    --color-border-strong: #5b6472;
+
+    --color-accent: #5ea1f0;
+    --color-accent-hover: #7db4f4;
+    --color-accent-subtle: #17273a;
+    --color-success: #4ec27f;
+    --color-success-subtle: #12281d;
+    --color-warning: #e0a94a;
+    --color-warning-subtle: #2b2213;
+    --color-danger: #f07171;
+    --color-danger-subtle: #2e1719;
+    --color-info: #9aa4b2;
+    --color-info-subtle: #1e232a;
+
+    --color-verdict-qualified: #4ec27f;
+    --color-verdict-qualified-bg: #12281d;
+    --color-verdict-review: #e0a94a;
+    --color-verdict-review-bg: #2b2213;
+    --color-verdict-rejected: #f07171;
+    --color-verdict-rejected-bg: #2e1719;
+    --color-verdict-unresolved: #9aa4b2;
+    --color-verdict-unresolved-bg: #1e232a;
+    --color-verdict-error: #c084fc;
+    --color-verdict-error-bg: #241a33;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Arabic script has taller ascenders and deeper descenders; the Latin
+   line-height crowds it. Keyed on the LANGUAGE now rather than on direction:
+   the admin shell no longer flips to RTL, but Arabic text still appears in it
+   â€” the generation wizard's Arabic fields â€” and that text still needs room. */
+:root:lang(ar),
+:lang(ar) {
+    --leading-normal: 1.7;
+    --leading-relaxed: 1.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --duration-instant: 0ms;
+        --duration-fast: 0ms;
+        --duration-normal: 0ms;
+    }
+}

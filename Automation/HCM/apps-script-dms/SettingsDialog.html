@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include_('Styles'); ?>
+</head>
+<body>
+  <h1>Settings</h1>
+  <p class="dek">Template IDs, output folder, and defaults. Nothing here is hardcoded in the script.</p>
+  <div id="errorBox" class="error-box" style="display:none;"></div>
+  <div id="fieldList">Loading…</div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="google.script.host.close()">Cancel</button>
+    <button class="btn btn-primary" id="saveBtn" onclick="save()">Save</button>
+  </div>
+
+  <script>
+    function showError(msg) {
+      var box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+    function escapeHtml(s) {
+      return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    google.script.run.withSuccessHandler(function (res) {
+      var list = document.getElementById('fieldList');
+      if (!res.ok) { showError(res.error); list.innerHTML = ''; return; }
+      list.innerHTML = '';
+      res.data.forEach(function (row) {
+        var wrap = document.createElement('div');
+        wrap.className = 'field';
+        wrap.innerHTML = '<label>' + row.key + '</label><input type="text" data-key="' + escapeHtml(row.key) + '" value="' + escapeHtml(row.value) + '">';
+        list.appendChild(wrap);
+      });
+    }).ui_getSettingsData();
+
+    function save() {
+      var btn = document.getElementById('saveBtn');
+      var rows = [];
+      document.querySelectorAll('[data-key]').forEach(function (el) {
+        rows.push({ key: el.getAttribute('data-key'), value: el.value });
+      });
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving…';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.ok) {
+            showError(res.error);
+            btn.disabled = false;
+            btn.textContent = 'Save';
+            return;
+          }
+          google.script.host.close();
+        })
+        .withFailureHandler(function (err) {
+          showError(err.message || String(err));
+          btn.disabled = false;
+          btn.textContent = 'Save';
+        })
+        .ui_submitSettings(rows);
+    }
+  </script>
+</body>
+</html>

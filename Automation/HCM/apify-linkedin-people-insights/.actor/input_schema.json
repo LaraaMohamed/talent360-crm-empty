@@ -1,0 +1,153 @@
+{
+  "title": "LinkedIn Company People Insights (Aggregates)",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "companies": {
+      "title": "Companies",
+      "type": "array",
+      "description": "LinkedIn company URLs or slugs. `https://www.linkedin.com/company/acme/`, `acme`, and `https://www.linkedin.com/company/1035/` are all accepted.",
+      "editor": "stringList",
+      "prefill": ["https://www.linkedin.com/company/talent-360-me/"],
+      "minItems": 1
+    },
+    "liAtCookie": {
+      "title": "LinkedIn `li_at` cookie",
+      "type": "string",
+      "description": "Session cookie from a logged-in LinkedIn account. The People Insights panels are behind auth — without this the actor can only reach the public company page. Copy the value of the `li_at` cookie from your browser's DevTools.",
+      "editor": "textfield",
+      "isSecret": true
+    },
+    "jsessionId": {
+      "title": "LinkedIn `JSESSIONID` cookie",
+      "type": "string",
+      "description": "Optional. Only needed by the JSON-API tier — it doubles as the CSRF token. Include the surrounding quotes exactly as the cookie stores them (e.g. `\"ajax:1234567890\"`).",
+      "editor": "textfield",
+      "isSecret": true
+    },
+    "targetCountry": {
+      "title": "Target country",
+      "type": "string",
+      "description": "Country resolved out of the \"Where they live\" panel and reported as `metrics.egyptEmployeeCount`.",
+      "editor": "textfield",
+      "default": "Egypt"
+    },
+    "tiers": {
+      "title": "Extraction tiers (in order)",
+      "type": "array",
+      "description": "Cheapest first. The chain stops at the first tier that returns a sufficient result, so listing more tiers costs nothing unless the earlier ones fail. `linkedin-json` replays a JSON endpoint learned from a previous HTML fetch (smallest payload); `linkedin-html` parses the embedded JSON of one server-rendered page load.",
+      "editor": "stringList",
+      "default": ["static", "linkedin-json", "linkedin-html"]
+    },
+    "allowBrowserFallback": {
+      "title": "Allow browser fallback tier",
+      "type": "boolean",
+      "description": "Last-resort tier that renders the People tab in Chromium and reads the insight cards out of the DOM, including carousel paging. Costs roughly 10-20x the Compute Units of the HTTP tiers and requires the browser image (see README).",
+      "default": false
+    },
+    "allowEmployeeFallback": {
+      "title": "Allow granular employee fallback",
+      "type": "boolean",
+      "description": "Absolute last resort. If no insight panel can be obtained, page through employee search results and aggregate the counts locally. This is the only tier that touches individual people, it is expensive, and it returns approximations. Off by default by design.",
+      "default": false
+    },
+    "employeeFallbackMaxPages": {
+      "title": "Employee fallback page cap",
+      "type": "integer",
+      "description": "Hard ceiling on search result pages the granular fallback may load per company.",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 20
+    },
+    "hrFunctionAliases": {
+      "title": "HR function labels",
+      "type": "array",
+      "description": "Labels in the \"What they do\" panel that count as the HR function. Matched case-insensitively against the whole label.",
+      "editor": "stringList",
+      "default": ["Human Resources", "HR", "Human Resources (HR)", "People Operations", "People & Culture"]
+    },
+    "hrAdjacentFunctionAliases": {
+      "title": "HR-adjacent function labels",
+      "type": "array",
+      "description": "Reported separately as `metrics.hrAdjacentCount` and never folded into the HR count — these are usually distinct entries in LinkedIn's function taxonomy, so adding them would double count.",
+      "editor": "stringList",
+      "default": ["Recruiting", "Talent Acquisition", "Administrative", "Support"]
+    },
+    "countryAliases": {
+      "title": "Country aliases",
+      "type": "object",
+      "description": "Extra spellings for country-level buckets, as `{ \"Egypt\": [\"Arab Republic of Egypt\"] }`. Merged into the built-in table.",
+      "editor": "json"
+    },
+    "subRegionHints": {
+      "title": "Sub-region hints",
+      "type": "object",
+      "description": "City/governorate labels that belong to a country but carry no country suffix, as `{ \"Egypt\": [\"Giza\", \"New Cairo\"] }`. Used only to compute a lower bound when the country-level bucket itself is missing. Merged into the built-in table.",
+      "editor": "json"
+    },
+    "qualificationRules": {
+      "title": "Qualification rules override",
+      "type": "object",
+      "description": "Replaces or patches the built-in rule set (hard filters, weighted signals, flags, verdict bands). Leave empty to use the defaults documented in the README.",
+      "editor": "json"
+    },
+    "staticInsights": {
+      "title": "Pre-supplied aggregates",
+      "type": "array",
+      "description": "Feed known aggregates straight into the qualification engine with zero page loads — for backfills, re-scoring after a rule change, and tests. Each item: `{ \"universalName\": \"acme\", \"associatedMembers\": 113, \"panels\": { \"functions\": [{\"label\":\"Human Resources\",\"count\":87}], \"locations\": [{\"label\":\"Egypt\",\"count\":91}] } }`.",
+      "editor": "json"
+    },
+    "maxPageLoadsPerCompany": {
+      "title": "Page loads per company",
+      "type": "integer",
+      "description": "Budget guard. The intended cost is 1. The default of 2 leaves room for exactly one retry or one escalation.",
+      "default": 2,
+      "minimum": 1,
+      "maximum": 25,
+      "sectionCaption": "Cost controls",
+      "sectionDescription": "These caps are enforced in code, not just advisory — the run aborts a company rather than quietly overspending."
+    },
+    "maxTotalPageLoads": {
+      "title": "Total page loads for the run",
+      "type": "integer",
+      "description": "Global ceiling across all companies. 0 means no ceiling.",
+      "default": 0,
+      "minimum": 0
+    },
+    "maxConcurrency": {
+      "title": "Concurrency",
+      "type": "integer",
+      "description": "Parallel companies. Keep this low: LinkedIn rate-limits per session, and a throttled session costs more retries than it saves in wall-clock time.",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 20
+    },
+    "cacheTtlHours": {
+      "title": "Cache TTL (hours)",
+      "type": "integer",
+      "description": "Aggregates for a company are reused from the key-value store for this long, at zero page loads. People Insights move slowly, so a long TTL is usually right. 0 disables the cache.",
+      "default": 168,
+      "minimum": 0
+    },
+    "enableEndpointLearning": {
+      "title": "Learn JSON endpoints",
+      "type": "boolean",
+      "description": "While parsing an HTML page, record the internal JSON endpoint that served the insight panels so later companies can request that endpoint directly — a smaller payload and no HTML parse. Learned endpoints are validated on use and discarded if they stop working.",
+      "default": true
+    },
+    "proxyConfiguration": {
+      "title": "Proxy",
+      "type": "object",
+      "description": "Datacenter proxies are much cheaper than residential and are usually enough for server-rendered company pages. Escalate to residential only if you see auth walls.",
+      "editor": "proxy",
+      "default": { "useApifyProxy": true }
+    },
+    "outputRawPanels": {
+      "title": "Include raw panels in output",
+      "type": "boolean",
+      "description": "Keep every extracted bucket (schools, skills, fields of study) in the dataset record, not just the panels the qualification engine reads.",
+      "default": true
+    }
+  },
+  "required": ["companies"]
+}

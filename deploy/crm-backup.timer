@@ -1,0 +1,17 @@
+# /etc/systemd/system/crm-backup.timer
+#
+#   systemctl enable --now crm-backup.timer
+#   systemctl list-timers crm-backup
+
+[Unit]
+Description=Nightly CRM backup
+
+[Timer]
+# 02:15 Doha time. Set the VM's clock with:
+#   timedatectl set-timezone Asia/Qatar
+OnCalendar=*-*-* 02:15:00
+# A machine that was asleep or rebuilding at 02:15 still gets its backup.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

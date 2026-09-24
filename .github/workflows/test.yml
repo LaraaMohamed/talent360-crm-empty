@@ -1,0 +1,35 @@
+name: Tests
+
+# Nothing gated a bad change from reaching Render before this existed — a push
+# to main went straight to a deploy with no automated check in between. This
+# does not block the deploy itself (Render's own auto-deploy isn't wired to
+# wait on this), but it puts a clear pass/fail on every push and pull request
+# so a broken change is visible before someone finds out from the app itself.
+# `npm test` is `node test.mjs` — a real suite (500+ checks) against a
+# throwaway local database, not a placeholder.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Run the test suite
+        run: npm test

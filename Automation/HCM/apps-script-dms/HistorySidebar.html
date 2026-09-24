@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include_('Styles'); ?>
+  <style>body { padding: 16px; }</style>
+</head>
+<body>
+  <h1 id="title">Document History</h1>
+  <p class="dek" id="sub">Loading…</p>
+  <div id="errorBox" class="error-box" style="display:none;"></div>
+  <div id="content"></div>
+
+  <script>
+    function showError(msg) {
+      var box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+
+    function pillClass(status) {
+      if (status === 'Generated') return 'pill-generated';
+      if (status === 'Error') return 'pill-error';
+      return 'pill-draft';
+    }
+
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res.ok) { showError(res.error); return; }
+      document.getElementById('title').textContent = res.data.company;
+      document.getElementById('sub').textContent = res.data.opportunityId + ' — ' + res.data.history.length + ' document(s)';
+
+      var content = document.getElementById('content');
+      if (res.data.history.length === 0) {
+        content.innerHTML = '<div class="empty-state">No documents generated yet for this Opportunity.<br>Use "Generate Document" from the menu.</div>';
+        return;
+      }
+
+      var table = document.createElement('table');
+      table.className = 'history';
+      table.innerHTML = '<thead><tr><th>Type</th><th>V</th><th>Date</th><th>Status</th></tr></thead>';
+      var tbody = document.createElement('tbody');
+      res.data.history.forEach(function (doc) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><a href="' + doc.url + '" target="_blank" rel="noopener">' + doc.docType + '</a><div class="hint">' + doc.by + '</div></td>' +
+          '<td>v' + doc.version + '</td>' +
+          '<td>' + doc.date + '</td>' +
+          '<td><span class="pill ' + pillClass(doc.status) + '">' + doc.status + '</span></td>';
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      content.appendChild(table);
+    }).ui_getHistoryInitData();
+  </script>
+</body>
+</html>

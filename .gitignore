@@ -1,10 +1,53 @@
-__pycache__/
-*.pyc
-.venv/
-venv/
-*.egg-info/
-task5-rag-langchain/sample_data/*.index
-task7-email-assistant/data/
-notebooks/data/
-notebooks/sample_data/
-.ipynb_checkpoints/
+# The database and uploaded files. `crm.db` also holds a verbatim copy of every
+# evidence snapshot, so it is both live data and a backup — keep it out of the
+# repository, and back it up by copying the file (see backup-db.mjs).
+data/
+
+node_modules/
+*.log
+
+# Environment files. `.env` was tracked until now, with a live read-write
+# database token in it — see the commit that removed it. Nothing reads this
+# file (Node does not load it implicitly, and the scripts that need credentials
+# take `--env-file=data/turso.env` explicitly), so it was a credential in the
+# repository for no working purpose at all.
+.env
+.env.*
+!.env.example
+
+# ── local-scraper/ ──────────────────────────────────────────────────────────
+#
+# The qualification rules live in local-scraper/lib, and the CRM reads them
+# from there rather than keeping its own copy so the two can never disagree
+# about what QUALIFIED means. A deployed CRM has no sibling checkout, so lib/
+# is tracked — without it every qualification run fails with "engine not
+# found". It is ~100KB of rule modules with no dependencies of their own.
+#
+# NOTHING else from that project belongs in this repository:
+#   browser-profile/   a logged-in browser session — live credentials
+#   snapshots.json     scraped evidence, and client data
+#   *.csv              prospect and contact lists
+#   node_modules/      its dependencies, which the CRM does not share
+local-scraper/*
+!local-scraper/lib/
+
+# ── Automation/ ─────────────────────────────────────────────────────────────
+#
+# The templates, the Apps Script sources and the reference drafts ARE tracked:
+# the templates are what the CRM generates from, and the drafts are the
+# authored documents the regression tests compare against. They were checked
+# for client data before being committed and contain none — every party field
+# reads "Company Name", "[CLIENT NAME]" or "شركة ………", and the only
+# registration number in them is Talent 360's own.
+#
+# These three are not worth versioning:
+
+# A zip snapshot of apps-script-dms/, which is already tracked as files.
+Automation/HCM/apps-script-dms.zip
+
+# Local machine settings, not project configuration.
+Automation/HCM/.claude/
+
+# A byte-identical duplicate of "Draft - HCM Agreement  (1).docx" (same md5).
+# Safe to delete from the working tree too.
+Automation/Draft - HCM Agreement  (1) (1).docx

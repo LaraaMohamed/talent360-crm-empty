@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include_('Styles'); ?>
+  <?!= include_('CrImportPartial'); ?>
+  <style>
+    .fp-panel {
+      background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 14px 16px; margin-bottom: 16px;
+    }
+    .fp-panel h2 { margin-bottom: 8px; }
+    .fp-row { display: flex; gap: 10px; font-size: 12.5px; padding: 3px 0; }
+    .fp-row .k { color: var(--text-dim); min-width: 150px; flex-shrink: 0; }
+    .fp-row .v { color: var(--text); font-weight: 600; }
+    .fp-row .v.ar { direction: rtl; text-align: right; }
+    .fp-actions { margin-top: 10px; }
+    .auto-badge {
+      display: inline-block; background: #E6F6F1; color: var(--accent-dark);
+      font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 9px; margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="step-list">
+    <div class="step-dot active" id="dot1"></div>
+    <div class="step-dot" id="dot2"></div>
+    <div class="step-dot" id="dot3"></div>
+  </div>
+
+  <div id="errorBox" class="error-box" style="display:none;"></div>
+
+  <!-- Step 1: choose document type -->
+  <div id="step1">
+    <h1 id="step1Title">Generate Document</h1>
+    <p class="dek" id="step1Dek">Loading…</p>
+    <div id="docTypeChoices"></div>
+  </div>
+
+  <!-- Step 1.5: Commercial Registration gate (agreements only, when not yet imported) -->
+  <div id="stepCr" style="display:none;">
+    <h1>Commercial Registration Needed</h1>
+    <p class="dek" id="crDek"></p>
+    <div id="crHost"></div>
+    <div class="btn-row split" style="margin-top:6px;">
+      <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
+      <span></span>
+    </div>
+  </div>
+
+  <!-- Step 2: dynamic form -->
+  <div id="step2" style="display:none;">
+    <h1 id="step2Title"></h1>
+    <p class="dek">Only the fields this template needs are shown below.</p>
+
+    <div id="firstPartyPanel" class="fp-panel" style="display:none;">
+      <h2>First Party — الطرف الأول</h2>
+      <div id="firstPartyRows"></div>
+      <div class="fp-actions">
+        <button class="btn btn-secondary" onclick="openCrStep()">Update Commercial Registration</button>
+      </div>
+    </div>
+
+    <div id="serviceSection" style="display:none;">
+      <h2>HCM Services</h2>
+      <p class="hint" style="margin-bottom:8px;">Shared with the HCM Agreement for this Opportunity — unchecking a service here removes it from both.</p>
+      <div id="serviceList"></div>
+      <div style="height:16px;"></div>
+    </div>
+
+    <div id="fieldList"></div>
+    <div class="btn-row split">
+      <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
+      <button class="btn btn-primary" id="generateBtn" onclick="submitGeneration()">Generate</button>
+    </div>
+  </div>
+
+  <!-- Step 3: result -->
+  <div id="step3" style="display:none;">
+    <div class="success-box">
+      <div class="check">✓</div>
+      <h1 id="resultTitle">Document Generated</h1>
+      <p class="dek" id="resultSub"></p>
+      <p><a id="resultLink" href="#" target="_blank" rel="noopener"></a></p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="google.script.host.close()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    var state = {
+      opportunityId: null, company: null, product: null,
+      docTypes: [], currentDocType: null, schema: null
+    };
+
+    function showError(msg) {
+      var box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+    function clearError() { document.getElementById('errorBox').style.display = 'none'; }
+    function esc(s) {
+      return String(s === undefined || s === null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /** n = 1 | 'cr' | 2 | 3 */
+    function goToStep(n) {
+      clearError();
+      ['step1', 'stepCr', 'step2', 'step3'].forEach(function (id) {
+        document.getElementById(id).style.display = 'none';
+      });
+      var map = { 1: 'step1', cr: 'stepCr', 2: 'step2', 3: 'step3' };
+      document.getElementById(map[n]).style.display = 'block';
+
+      var dotIndex = (n === 1) ? 1 : (n === 'cr' || n === 2) ? 2 : 3;
+      [1, 2, 3].forEach(function (i) {
+        var dot = document.getElementById('dot' + i);
+        dot.className = 'step-dot' + (i < dotIndex ? ' done' : (i === dotIndex ? ' active' : ''));
+      });
+    }
+
+    // ---- Step 1 ----
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res.ok) { showError(res.error); return; }
+      state.opportunityId = res.data.opportunityId;
+      state.company = res.data.company;
+      state.product = res.data.product;
+      state.docTypes = res.data.docTypes;
+
+      document.getElementById('step1Title').textContent = 'Generate Document — ' + res.data.company;
+      document.getElementById('step1Dek').textContent =
+        res.data.product + ' Opportunity (' + res.data.opportunityId + ') — choose what to generate:';
+
+      var container = document.getElementById('docTypeChoices');
+      container.innerHTML = '';
+      res.data.docTypes.forEach(function (dt) {
+        var btn = document.createElement('button');
+        btn.className = 'doctype-choice';
+        btn.innerHTML = '<div class="title">' + esc(dt.label) + '</div><div class="sub">' +
+          (dt.key.indexOf('AGREEMENT') !== -1 ? 'Legal agreement document' : 'Commercial proposal document') + '</div>';
+        btn.onclick = function () { loadDocType(dt.key); };
+        container.appendChild(btn);
+      });
+    }).ui_getWizardInitData();
+
+    // ---- Load schema, then route to the CR gate or straight to the form ----
+    function loadDocType(docTypeKey) {
+      clearError();
+      state.currentDocType = docTypeKey;
+      google.script.run.withSuccessHandler(function (res) {
+        if (!res.ok) { showError(res.error); return; }
+        state.schema = res.data;
+
+        // Requirement: if the agreement needs a Commercial Registration and
+        // none has been imported, prompt for it before showing the form.
+        if (res.data.requiresCommercialRegistration && res.data.firstParty && !res.data.firstParty.imported) {
+          openCrStep();
+          return;
+        }
+        renderForm();
+        goToStep(2);
+      }).ui_getDocTypeFormSchema(state.opportunityId, docTypeKey);
+    }
+
+    function openCrStep() {
+      clearError();
+      document.getElementById('crDek').textContent =
+        'Upload ' + state.company + '’s Commercial Registration certificate. Its company name, ' +
+        'registration number, and address fill in the First Party block automatically.';
+      var existing = (state.schema && state.schema.firstParty && state.schema.firstParty.imported)
+        ? state.schema.firstParty : null;
+      CrImport.mount({
+        containerId: 'crHost',
+        opportunityId: state.opportunityId,
+        existing: existing,
+        onSaved: function () {
+          // Re-fetch the schema so the First Party panel shows the saved values.
+          google.script.run.withSuccessHandler(function (res) {
+            if (!res.ok) { showError(res.error); return; }
+            state.schema = res.data;
+            renderForm();
+            goToStep(2);
+          }).ui_getDocTypeFormSchema(state.opportunityId, state.currentDocType);
+        }
+      });
+      goToStep('cr');
+    }
+
+    // ---- Step 2 ----
+    function renderForm() {
+      var schema = state.schema;
+      document.getElementById('step2Title').textContent = schema.label;
+
+      // First Party (read-only, sourced from the certificate)
+      var fpPanel = document.getElementById('firstPartyPanel');
+      if (schema.requiresCommercialRegistration && schema.firstParty && schema.firstParty.imported) {
+        var fp = schema.firstParty;
+        fpPanel.style.display = 'block';
+        document.getElementById('firstPartyRows').innerHTML =
+          fpRow('Company Name (Arabic)', fp.companyNameAr, true) +
+          fpRow('Registration Number', fp.crNumber, false) +
+          fpRow('Representative', fp.representativeName || '—', true) +
+          fpRow('Address', fp.address || '—', true) +
+          fpRow('Agreement Date', schema.agreementDateToday + ' (today)', false);
+      } else {
+        fpPanel.style.display = 'none';
+      }
+
+      // HCM services
+      var svcSection = document.getElementById('serviceSection');
+      var svcList = document.getElementById('serviceList');
+      svcList.innerHTML = '';
+      if (schema.hasServiceSelection) {
+        svcSection.style.display = 'block';
+        schema.serviceSelection.forEach(function (svc) {
+          var row = document.createElement('label');
+          row.className = 'service-row';
+          row.innerHTML = '<input type="checkbox" data-svc-key="' + esc(svc.key) + '" ' +
+            (svc.enabled ? 'checked' : '') + '> ' + esc(svc.label);
+          svcList.appendChild(row);
+        });
+      } else {
+        svcSection.style.display = 'none';
+      }
+
+      // Template-specific fields
+      var fieldList = document.getElementById('fieldList');
+      fieldList.innerHTML = '';
+      schema.fields.forEach(function (f) {
+        var wrap = document.createElement('div');
+        wrap.className = 'field';
+        var value = (schema.latestValues[f.key] !== undefined) ? schema.latestValues[f.key] : f.defaultValue;
+        var inputHtml;
+        if (f.type === 'textarea') {
+          inputHtml = '<textarea data-field-key="' + esc(f.key) + '">' + esc(value) + '</textarea>';
+        } else {
+          var inputType = (f.type === 'number') ? 'number' : (f.type === 'date' ? 'date' : 'text');
+          inputHtml = '<input type="' + inputType + '" data-field-key="' + esc(f.key) + '" value="' + esc(value) + '"' +
+            (f.autoCalcFrom ? ' data-auto-calc-from="' + esc(f.autoCalcFrom) + '"' : '') + '>';
+        }
+        var badge = f.autoCalcFrom ? '<span class="auto-badge">auto</span>' : '';
+        wrap.innerHTML = '<label>' + esc(f.label) + (f.required ? ' <span class="required-mark">*</span>' : '') +
+          badge + '</label>' + inputHtml +
+          (f.hint ? '<div class="hint">' + esc(f.hint) + '</div>' : '');
+        fieldList.appendChild(wrap);
+      });
+
+      wireAutoCalc();
+    }
+
+    function fpRow(k, v, isArabic) {
+      return '<div class="fp-row"><span class="k">' + esc(k) + '</span>' +
+        '<span class="v' + (isArabic ? ' ar' : '') + '"' + (isArabic ? ' dir="rtl"' : '') + '>' + esc(v) + '</span></div>';
+    }
+
+    /**
+     * Wires end-date auto-calculation: whenever the source start date
+     * changes, the dependent field is recomputed server-side — unless the
+     * user has explicitly edited it themselves, which is respected as an
+     * override for the rest of the session.
+     */
+    function wireAutoCalc() {
+      document.querySelectorAll('[data-auto-calc-from]').forEach(function (target) {
+        var sourceKey = target.getAttribute('data-auto-calc-from');
+        var source = document.querySelector('[data-field-key="' + sourceKey + '"]');
+        if (!source) return;
+
+        target.addEventListener('input', function () { target.dataset.userOverridden = 'true'; });
+
+        source.addEventListener('change', function () {
+          if (target.dataset.userOverridden === 'true') return;
+          if (!source.value) return;
+          google.script.run.withSuccessHandler(function (res) {
+            if (res.ok && res.data.endIso && target.dataset.userOverridden !== 'true') {
+              target.value = res.data.endIso;
+            }
+          }).ui_computeContractEndDate(source.value);
+        });
+
+        // Fill it on first render if a start date is present but the end isn't.
+        if (source.value && !target.value) {
+          google.script.run.withSuccessHandler(function (res) {
+            if (res.ok && res.data.endIso) target.value = res.data.endIso;
+          }).ui_computeContractEndDate(source.value);
+        }
+      });
+    }
+
+    // ---- Step 3 ----
+    function submitGeneration() {
+      clearError();
+      var btn = document.getElementById('generateBtn');
+      var fieldValues = {};
+      document.querySelectorAll('[data-field-key]').forEach(function (el) {
+        fieldValues[el.getAttribute('data-field-key')] = el.value;
+      });
+      var serviceMap = null;
+      if (state.schema.hasServiceSelection) {
+        serviceMap = {};
+        document.querySelectorAll('[data-svc-key]').forEach(function (el) {
+          serviceMap[el.getAttribute('data-svc-key')] = el.checked;
+        });
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Generating…';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          btn.textContent = 'Generate';
+          if (!res.ok) { showError(res.error); return; }
+          document.getElementById('resultSub').textContent = state.schema.label + ' — version ' + res.data.version;
+          var link = document.getElementById('resultLink');
+          link.href = res.data.url;
+          link.textContent = res.data.url;
+          goToStep(3);
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Generate';
+          showError((err && err.message) ? err.message : String(err));
+        })
+        .ui_submitGenerateDocument(state.opportunityId, state.currentDocType, fieldValues, serviceMap);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,415 @@
+<!--
+  CrImportPartial.html
+
+  Shared Commercial Registration import UI: the upload drop-zone plus the
+  editable confirmation form. Included by BOTH the standalone
+  CommercialRegistrationDialog (menu entry) and the GenerateWizard's inline
+  gate step, so the markup and client logic exist in exactly one place.
+
+  Usage from a host page:
+      CrImport.mount({
+        containerId: 'crHost',
+        opportunityId: '<OPP-ID>',
+        existing: <object|null>,
+        onSaved: function (savedValues) { ... }
+      });
+-->
+
+<style>
+  .cr-drop {
+    border: 2px dashed var(--line); border-radius: var(--radius); padding: 24px 18px;
+    text-align: center; background: var(--panel); cursor: pointer;
+  }
+  .cr-drop:hover, .cr-drop.hover { border-color: var(--accent); background: #F4FBF9; }
+  .cr-drop .big { font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+  .cr-drop .small { font-size: 11.5px; color: var(--text-dim); }
+  .cr-conf { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 10.5px; font-weight: 600; }
+  .cr-conf-high { background: #E6F6F1; color: var(--accent-dark); }
+  .cr-conf-medium { background: #FFF4E0; color: #8A5A08; }
+  .cr-conf-low, .cr-conf-none, .cr-conf-manual { background: var(--danger-bg); color: var(--danger); }
+  .cr-warn {
+    background: #FFF8EC; border: 1px solid rgba(181,115,10,0.3); border-left: 3px solid #B5730A;
+    border-radius: 0 6px 6px 0; padding: 10px 12px; font-size: 12px; color: #6B4A08; margin-bottom: 14px;
+  }
+  .cr-warn ul { margin: 4px 0 0; padding-left: 18px; }
+  .cr-ar { direction: rtl; text-align: right; font-size: 14px; }
+  .cr-note {
+    background: #EEF4FB; border: 1px solid #C9DCF0; border-radius: 6px; padding: 9px 12px;
+    font-size: 12px; color: #24486F; margin-bottom: 14px;
+  }
+  .cr-hidden { display: none; }
+  .cr-raw { margin: 4px 0 16px; }
+  .cr-raw summary {
+    cursor: pointer; font-size: 12px; font-weight: 600; color: var(--accent);
+    padding: 4px 0; user-select: none;
+  }
+  .cr-raw textarea {
+    direction: rtl; text-align: right; font-size: 12px; line-height: 1.7;
+    background: #FAFAF8; color: var(--text);
+  }
+  .cr-suggest { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .cr-suggest .lbl { font-size: 11px; color: var(--text-dim); }
+  .cr-chip {
+    direction: rtl; font-size: 12.5px; padding: 4px 10px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    cursor: pointer; font-family: inherit;
+  }
+  .cr-chip:hover { border-color: var(--accent); background: #F4FBF9; }
+</style>
+
+<script>
+  var CrImport = (function () {
+    var cfg = { containerId: null, opportunityId: null, onSaved: null };
+    var parsed = null;
+    var sourceFileUrl = '';
+
+    function esc(s) {
+      return String(s === undefined || s === null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function el(id) { return document.getElementById(id); }
+    function host() { return el(cfg.containerId); }
+
+    function template() {
+      return '' +
+        '<div id="crError" class="error-box cr-hidden"></div>' +
+        '<div id="crNote" class="cr-note cr-hidden"></div>' +
+
+        '<div id="crStepUpload">' +
+        '  <div class="cr-drop" id="crDrop">' +
+        '    <div class="big">Choose the certificate, or drop it here</div>' +
+        '    <div class="small">PDF, JPG, or PNG &middot; upload just the certificate page for best results</div>' +
+        '  </div>' +
+        '  <input type="file" id="crFile" style="display:none" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*">' +
+        '  <p class="hint" style="margin-top:10px;">Text is read automatically, then you confirm every value before anything is saved.</p>' +
+        '  <div style="text-align:right;margin-top:10px;">' +
+        '    <button class="btn btn-secondary" id="crManualBtn">Enter manually instead</button>' +
+        '  </div>' +
+        '</div>' +
+
+        '<div id="crStepConfirm" class="cr-hidden">' +
+        '  <div id="crConfRow" style="margin-bottom:12px;"></div>' +
+        '  <div id="crWarn" class="cr-warn cr-hidden"></div>' +
+        '  <div class="field">' +
+        '    <label>Company Name (Arabic) <span class="required-mark">*</span></label>' +
+        '    <input type="text" id="crCompanyNameAr" class="cr-ar" dir="rtl">' +
+        '    <div id="crNameSuggest" class="cr-suggest cr-hidden"></div>' +
+        '    <div class="hint">Written into the agreement\'s First Party (الطرف الأول) block exactly as typed.</div>' +
+        '  </div>' +
+        '  <div class="field">' +
+        '    <label>Commercial Registration Number <span class="required-mark">*</span></label>' +
+        '    <input type="text" id="crNumber">' +
+        '  </div>' +
+        '  <div class="field">' +
+        '    <label>Representative Name <span class="required-mark">*</span></label>' +
+        '    <input type="text" id="crRepName" class="cr-ar" dir="rtl">' +
+        '    <div id="crRepSuggest" class="cr-suggest cr-hidden"></div>' +
+        '    <div class="hint">The manager who signs for the client — goes into "ويمثلها قانوناً السيد /".</div>' +
+        '  </div>' +
+        '  <div class="field">' +
+        '    <label>Company Address</label>' +
+        '    <textarea id="crAddress" class="cr-ar" dir="rtl"></textarea>' +
+        '    <div id="crAddrSuggest" class="cr-suggest cr-hidden"></div>' +
+        '    <div class="hint">If the certificate shows an amended address, pick the current one.</div>' +
+        '  </div>' +
+        '  <div class="field">' +
+        '    <label>National Establishment Number</label>' +
+        '    <input type="text" id="crNationalNumber">' +
+        '    <div class="hint">Optional. Recorded for reference; not written into the agreement.</div>' +
+        '  </div>' +
+        '  <details id="crRawWrap" class="cr-raw cr-hidden">' +
+        '    <summary>Show recognized text</summary>' +
+        '    <p class="hint" style="margin:6px 0;">Exactly what the OCR returned. If the fields above came out ' +
+        '       empty but there is readable text here, it is the matching rules that need tuning, not your scan.</p>' +
+        '    <textarea id="crRawText" readonly rows="10"></textarea>' +
+        '  </details>' +
+        '  <div class="btn-row split">' +
+        '    <button class="btn btn-secondary" id="crBackBtn">Upload a different file</button>' +
+        '    <button class="btn btn-primary" id="crSaveBtn">Save &amp; Use These Values</button>' +
+        '  </div>' +
+        '</div>';
+    }
+
+    function showError(msg) { var b = el('crError'); b.textContent = msg; b.classList.remove('cr-hidden'); }
+    function clearError() { el('crError').classList.add('cr-hidden'); }
+
+    function resetDrop() {
+      el('crDrop').innerHTML =
+        '<div class="big">Choose the certificate, or drop it here</div>' +
+        '<div class="small">PDF, JPG, or PNG &middot; upload just the certificate page for best results</div>';
+    }
+
+    function wire() {
+      var drop = el('crDrop');
+      var fileInput = el('crFile');
+
+      drop.addEventListener('click', function () { fileInput.click(); });
+      fileInput.addEventListener('change', function () { handleFile(fileInput.files[0]); });
+
+      ['dragenter', 'dragover'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('hover'); });
+      });
+      ['dragleave', 'drop'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('hover'); });
+      });
+      drop.addEventListener('drop', function (e) {
+        if (e.dataTransfer.files && e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+      });
+
+      el('crManualBtn').addEventListener('click', function () {
+        parsed = {
+          companyNameAr: '', crNumber: '', representativeName: '', address: '',
+          nationalNumber: '', confidence: 'manual', warnings: []
+        };
+        renderConfirm();
+      });
+      el('crBackBtn').addEventListener('click', function () {
+        clearError();
+        el('crStepConfirm').classList.add('cr-hidden');
+        el('crStepUpload').classList.remove('cr-hidden');
+      });
+      el('crSaveBtn').addEventListener('click', save);
+    }
+
+    /** Drive OCR gets unreliable past ~2 MB, so images are shrunk below it. */
+    var OCR_TARGET_BYTES = 1.6 * 1024 * 1024;
+    var OCR_MAX_EDGE = 2200; // ample detail for printed Arabic text
+
+    /**
+     * Downscales an image until it fits Drive's OCR sweet spot, handing back a
+     * JPEG ArrayBuffer. Non-images pass straight through untouched.
+     *
+     * This is what makes a phone photo or a large PNG simply work instead of
+     * being rejected for size: recognition needs legible glyphs, not megapixels.
+     */
+    function prepareForOcr(file, done, fail) {
+      if (String(file.type || '').indexOf('image/') !== 0) {
+        readBlobAsArrayBuffer(file, done, fail);
+        return;
+      }
+
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var scale = Math.min(1, OCR_MAX_EDGE / Math.max(img.width, img.height));
+        var w = Math.max(1, Math.round(img.width * scale));
+        var h = Math.max(1, Math.round(img.height * scale));
+
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';   // flatten transparency; OCR prefers white
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+
+        // Step quality down until it fits, rather than guessing once.
+        var qualities = [0.9, 0.75, 0.6, 0.45];
+        (function attempt(i) {
+          canvas.toBlob(function (blob) {
+            if (!blob) { fail('That image could not be processed.'); return; }
+            if (blob.size <= OCR_TARGET_BYTES || i === qualities.length - 1) {
+              readBlobAsArrayBuffer(blob, function (buf) { done(buf, 'image/jpeg'); }, fail);
+            } else {
+              attempt(i + 1);
+            }
+          }, 'image/jpeg', qualities[i]);
+        })(0);
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        fail('That image could not be opened.');
+      };
+      img.src = url;
+    }
+
+    function readBlobAsArrayBuffer(blob, done, fail) {
+      var reader = new FileReader();
+      reader.onload = function (e) { done(e.target.result, blob.type); };
+      reader.onerror = function () { fail('That file could not be read from your computer.'); };
+      reader.readAsArrayBuffer(blob);
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      clearError();
+      el('crDrop').innerHTML =
+        '<div class="big"><span class="spinner" style="border-color:rgba(0,0,0,0.2);border-top-color:#12886F;"></span> ' +
+        'Reading &ldquo;' + esc(file.name) + '&rdquo;&hellip;</div>' +
+        '<div class="small">Character recognition can take up to a minute.</div>';
+
+      prepareForOcr(file, function (buffer, mimeType) {
+        // google.script.run cannot carry a File/Blob, so send a plain byte array.
+        var bytes = Array.prototype.slice.call(new Uint8Array(buffer));
+        google.script.run
+          .withSuccessHandler(function (res) {
+            resetDrop();
+            if (!res.ok) { showError(res.error); return; }
+            parsed = res.data;
+            sourceFileUrl = res.data.sourceFileUrl || '';
+            renderConfirm();
+          })
+          .withFailureHandler(function (err) {
+            resetDrop();
+            showError((err && err.message) ? err.message : String(err));
+          })
+          .ui_extractCommercialRegistration(cfg.opportunityId, {
+            bytes: bytes,
+            mimeType: mimeType || file.type || 'application/octet-stream',
+            fileName: file.name
+          });
+      }, function (msg) {
+        resetDrop();
+        showError(msg);
+      });
+    }
+
+    /**
+     * Renders candidate values as one-click chips that fill a target field.
+     * Shared by the name, representative and address fields.
+     * @param {string} containerId
+     * @param {string} targetId Field the chip fills when clicked.
+     * @param {Array<string>} candidates
+     */
+    function renderChips(containerId, targetId, candidates) {
+      var box = el(containerId);
+      if (!box) return;
+      box.innerHTML = '';
+      if (!candidates || !candidates.length) {
+        box.classList.add('cr-hidden');
+        return;
+      }
+      box.classList.remove('cr-hidden');
+      var lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = candidates.length > 1 ? 'Found on the certificate — pick one:' : 'Found on the certificate:';
+      box.appendChild(lbl);
+      candidates.forEach(function (cand) {
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'cr-chip';
+        chip.dir = 'rtl';
+        chip.textContent = cand;
+        chip.addEventListener('click', function () {
+          var target = el(targetId);
+          target.value = cand;
+          target.focus();
+        });
+        box.appendChild(chip);
+      });
+    }
+
+    function renderConfirm() {
+      var p = parsed || {};
+      el('crCompanyNameAr').value = p.companyNameAr || '';
+      el('crNumber').value = p.crNumber || '';
+      el('crRepName').value = p.representativeName || '';
+      el('crAddress').value = p.address || '';
+      el('crNationalNumber').value = p.nationalNumber || '';
+
+      var conf = p.confidence || 'none';
+      var labels = {
+        high: 'High confidence', medium: 'Medium confidence',
+        low: 'Low confidence', none: 'Nothing recognized', manual: 'Manual entry'
+      };
+      el('crConfRow').innerHTML =
+        '<span class="cr-conf cr-conf-' + esc(conf) + '">' + esc(labels[conf] || conf) + '</span>' +
+        '<span class="hint" style="margin-left:8px;">Check every value against the certificate before saving.</span>';
+
+      // Candidates are OFFERED, never auto-applied. Certificates routinely
+      // carry amendments (a superseded trade name, a former address) and list
+      // several managers; picking for the user could put the wrong legal party
+      // into a signed agreement.
+      renderChips('crNameSuggest', 'crCompanyNameAr', p.nameCandidates);
+      renderChips('crRepSuggest', 'crRepName', p.representativeCandidates);
+      renderChips('crAddrSuggest', 'crAddress', p.addressCandidates);
+
+      // Diagnostic panel: only meaningful when OCR actually ran.
+      var rawWrap = el('crRawWrap');
+      if (p.ocrRawText) {
+        el('crRawText').value = p.ocrRawText;
+        rawWrap.classList.remove('cr-hidden');
+        // Auto-expand when nothing was extracted — that's exactly when the
+        // user needs to see the text to fill fields in and report back.
+        rawWrap.open = !p.crNumber && !p.companyNameAr;
+      } else {
+        rawWrap.classList.add('cr-hidden');
+      }
+
+      var warn = el('crWarn');
+      if (p.warnings && p.warnings.length) {
+        warn.classList.remove('cr-hidden');
+        warn.innerHTML = '<strong>Please review:</strong><ul>' +
+          p.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>';
+      } else {
+        warn.classList.add('cr-hidden');
+      }
+
+      el('crStepUpload').classList.add('cr-hidden');
+      el('crStepConfirm').classList.remove('cr-hidden');
+    }
+
+    function save() {
+      clearError();
+      var btn = el('crSaveBtn');
+      var data = {
+        companyNameAr: el('crCompanyNameAr').value,
+        crNumber: el('crNumber').value,
+        representativeName: el('crRepName').value,
+        address: el('crAddress').value,
+        nationalNumber: el('crNationalNumber').value,
+        confidence: (parsed && parsed.confidence) || 'manual',
+        sourceFileUrl: sourceFileUrl
+      };
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving…';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          btn.textContent = 'Save & Use These Values';
+          if (!res.ok) { showError(res.error); return; }
+          if (typeof cfg.onSaved === 'function') cfg.onSaved(data);
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Save & Use These Values';
+          showError((err && err.message) ? err.message : String(err));
+        })
+        .ui_saveCommercialRegistration(cfg.opportunityId, data);
+    }
+
+    return {
+      /**
+       * Renders the import UI into a container and wires it up.
+       * @param {{containerId: string, opportunityId: string,
+       *          existing: (Object|null), onSaved: function(Object)}} options
+       */
+      mount: function (options) {
+        cfg = options;
+        parsed = null;
+        sourceFileUrl = '';
+        host().innerHTML = template();
+        wire();
+
+        if (options.existing) {
+          var e = options.existing;
+          var note = el('crNote');
+          note.classList.remove('cr-hidden');
+          note.innerHTML = 'A certificate is already on file' +
+            (e.importedAt ? ' (imported ' + esc(e.importedAt) + ')' : '') +
+            '. Uploading a new one replaces it, or <a href="#" id="crEditExisting">edit the current values</a>.';
+          el('crEditExisting').addEventListener('click', function (ev) {
+            ev.preventDefault();
+            parsed = {
+              companyNameAr: e.companyNameAr, crNumber: e.crNumber,
+              representativeName: e.representativeName || '', address: e.address,
+              nationalNumber: e.nationalNumber, confidence: e.confidence || 'manual', warnings: []
+            };
+            renderConfirm();
+          });
+        }
+      }
+    };
+  })();
+</script>

@@ -1,0 +1,22 @@
+# Opt-in image for the browser fallback tier (`allowBrowserFallback: true`) and
+# the granular employee fallback. Costs noticeably more Compute Units than the
+# default .actor/Dockerfile: bigger image, slower boot, and Chromium needs
+# >= 1024 MB of memory to be stable.
+#
+# To use it, point .actor/actor.json at this file:
+#   "dockerfile": "../Dockerfile.browser"
+# and raise minMemoryMbytes to 1024.
+FROM apify/actor-node-playwright-chrome:20
+
+COPY --chown=myuser:myuser package*.json ./
+
+RUN npm --quiet set progress=false \
+    && npm install --omit=dev --no-audit --no-fund \
+    && echo "Installed npm packages:" \
+    && (npm list --omit=dev --all || true) \
+    && echo "Node.js version:" \
+    && node --version
+
+COPY --chown=myuser:myuser . ./
+
+CMD ["npm", "start", "--silent"]
