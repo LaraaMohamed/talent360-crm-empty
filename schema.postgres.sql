@@ -1663,9 +1663,21 @@ CREATE INDEX IF NOT EXISTS idx_contact_reassign_requests_contact
 -- (CREATE TABLE ... REFERENCES needs the target relation to already exist).
 -- Added here, after import_batches, rather than reordering ~50 interdependent
 -- tables to match dependency order.
-ALTER TABLE prospecting_companies
-    ADD CONSTRAINT fk_prospecting_companies_import_batch
-    FOREIGN KEY (import_batch_id) REFERENCES import_batches(id);
-ALTER TABLE prospecting_contacts
-    ADD CONSTRAINT fk_prospecting_contacts_import_batch
-    FOREIGN KEY (import_batch_id) REFERENCES import_batches(id);
+--
+-- Wrapped in DO blocks because, unlike CREATE TABLE/INDEX, Postgres has no
+-- `ADD CONSTRAINT IF NOT EXISTS` — and this whole file runs on every server
+-- boot (see migrate() in lib/db.mjs), not just the first one. A plain ALTER
+-- TABLE here would crash-loop the app forever after the first successful
+-- boot, once the constraint already exists.
+DO $$ BEGIN
+    ALTER TABLE prospecting_companies
+        ADD CONSTRAINT fk_prospecting_companies_import_batch
+        FOREIGN KEY (import_batch_id) REFERENCES import_batches(id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+    ALTER TABLE prospecting_contacts
+        ADD CONSTRAINT fk_prospecting_contacts_import_batch
+        FOREIGN KEY (import_batch_id) REFERENCES import_batches(id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
