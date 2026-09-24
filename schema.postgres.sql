@@ -409,7 +409,7 @@ CREATE TABLE IF NOT EXISTS prospecting_companies (
     -- "which file did this come from, and who uploaded it?" must stay answerable
     -- for the life of the row — including after the company has been imported
     -- into the CRM and is being worked as an Account.
-    import_batch_id  TEXT REFERENCES import_batches(id),
+    import_batch_id  TEXT, -- FK to import_batches added below, once that table exists (forward reference)
     imported_account_id TEXT REFERENCES accounts(id),
     imported_at      TEXT,
     owner_id         TEXT REFERENCES users(id),
@@ -470,7 +470,7 @@ CREATE TABLE IF NOT EXISTS prospecting_contacts (
     id                TEXT PRIMARY KEY,
     workspace_id      TEXT NOT NULL REFERENCES workspaces(id),
     prospect_id       TEXT NOT NULL REFERENCES prospecting_companies(id),
-    import_batch_id   TEXT REFERENCES import_batches(id),
+    import_batch_id   TEXT, -- FK to import_batches added below, once that table exists (forward reference)
     first_name        TEXT NOT NULL DEFAULT '',
     last_name         TEXT NOT NULL DEFAULT '',
     title             TEXT,
@@ -1654,3 +1654,18 @@ CREATE INDEX IF NOT EXISTS idx_contact_reassign_requests_requester
     ON contact_reassign_requests(workspace_id, requested_by, status);
 CREATE INDEX IF NOT EXISTS idx_contact_reassign_requests_contact
     ON contact_reassign_requests(workspace_id, contact_id, status);
+
+-- ---------------------------------------------------- deferred foreign keys --
+--
+-- schema.sql defines prospecting_companies and prospecting_contacts before
+-- import_batches, which SQLite tolerates (it does not resolve a REFERENCES
+-- target until the constraint is actually enforced) but Postgres does not
+-- (CREATE TABLE ... REFERENCES needs the target relation to already exist).
+-- Added here, after import_batches, rather than reordering ~50 interdependent
+-- tables to match dependency order.
+ALTER TABLE prospecting_companies
+    ADD CONSTRAINT fk_prospecting_companies_import_batch
+    FOREIGN KEY (import_batch_id) REFERENCES import_batches(id);
+ALTER TABLE prospecting_contacts
+    ADD CONSTRAINT fk_prospecting_contacts_import_batch
+    FOREIGN KEY (import_batch_id) REFERENCES import_batches(id);
