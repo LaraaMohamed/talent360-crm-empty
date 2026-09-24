@@ -7,7 +7,7 @@
  * of them from QUALIFIED to REJECTED, and nothing recorded it.
  */
 import fs from 'node:fs';
-import { all, get, REMOTE } from '../lib/db.mjs';
+import { all, get, HOSTED } from '../lib/db.mjs';
 import { readBody, readJson, badRequest } from '../lib/http.mjs';
 import { require$ } from '../lib/auth.mjs';
 import {
@@ -240,7 +240,7 @@ export async function uploaderStatus({ ctx }) {
         // Whether this CRM is the hosted one. "Not installed" means something
         // different there: not a folder to go and find, but a thing that
         // deliberately does not run on a server.
-        remote: REMOTE,
+        remote: HOSTED,
         snapshotsFile: SNAPSHOTS_FILE,
         snapshots,
         collected,

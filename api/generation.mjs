@@ -15,7 +15,7 @@
  */
 import { readBody, readJson, badRequest, notFound } from '../lib/http.mjs';
 import { require$, requireWrite } from '../lib/auth.mjs';
-import { all, get, run, id, now, json, REMOTE } from '../lib/db.mjs';
+import { all, get, run, id, now, json, HOSTED } from '../lib/db.mjs';
 import { getRecord, audit, updateRecord } from '../lib/repo.mjs';
 import {
     availableTypes, prefillFields, validate, previewGeneration, generate, historyFor,
@@ -532,8 +532,8 @@ export async function uploadTemplate({ req, url, ctx }) {
      * throwaway database on purpose, and that is a legitimate, different use
      * from an admin updating the template real reps generate contracts from.
      */
-    if (!REMOTE) {
-        throw badRequest('This server has no connection to the hosted database right now, so a new template cannot be installed safely — it would only save to local disk and silently replace the template that currently works. Connect to the hosted database (TURSO_URL) and try again.');
+    if (!HOSTED) {
+        throw badRequest('This server has no connection to the hosted database right now, so a new template cannot be installed safely — it would only save to local disk and silently replace the template that currently works. Connect to the hosted database (TURSO_URL or DATABASE_URL) and try again.');
     }
 
     const buffer = await readBody(req);

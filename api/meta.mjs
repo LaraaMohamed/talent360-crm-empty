@@ -8,7 +8,7 @@
  * server.
  */
 import { randomBytes } from 'node:crypto';
-import { all, get, run, id, now, json, REMOTE } from '../lib/db.mjs';
+import { all, get, run, id, now, json, HOSTED } from '../lib/db.mjs';
 import {
     OBJECTS, fieldsFor, operatorsFor, OPERATOR_LABELS, LIFECYCLE_STAGES, VERDICTS, ACCOUNT_TYPES,
     STATUS_TONES, BILLING_CURRENCIES,
@@ -156,7 +156,7 @@ export async function health() {
  * deploy, a failed restore — means the CRM is claimed by a stranger. So it also
  * wants a secret when one is configured.
  *
- * On a hosted database that secret is not optional: REMOTE means this server
+ * On a hosted database that secret is not optional: HOSTED means this server
  * is reachable from the open internet (or will be, the moment it is deployed),
  * so "the token was never set" must fail closed rather than silently degrade
  * to "whoever calls this first owns the CRM." Locally, with no hosted database
@@ -167,7 +167,7 @@ export async function setup({ req }) {
     const body = await readJson(req);
 
     const expected = process.env.CRM_SETUP_TOKEN;
-    if (REMOTE && !expected) {
+    if (HOSTED && !expected) {
         throw badRequest('CRM_SETUP_TOKEN must be set before first-run setup can be used on a hosted database.');
     }
     if (expected && body.token !== expected) {

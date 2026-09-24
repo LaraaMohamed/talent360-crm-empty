@@ -12,7 +12,7 @@
  */
 import http from 'node:http';
 import path from 'node:path';
-import { migrate, close, identity, ROOT, describe, get, REMOTE } from './lib/db.mjs';
+import { migrate, close, identity, ROOT, describe, get, HOSTED } from './lib/db.mjs';
 import {
     createRouter, sendJson, serveStatic, parseCookies, HttpError, unauthorized, forbidden,
 } from './lib/http.mjs';
@@ -98,11 +98,11 @@ const server = http.createServer(async (req, res) => {
                         const originHostName = originUrl.hostname;
                         // The localhost/127.0.0.1/Cloud-Run allowances below exist for
                         // local development and testing against a throwaway database,
-                        // and only make sense there. REMOTE means this process is
+                        // and only make sense there. HOSTED means this process is
                         // talking to the shared hosted database — real customer data,
                         // reachable from the open internet — so on that path an origin
                         // must match the request's own Host exactly, no exceptions.
-                        const devAllowance = !REMOTE && (originHostName === 'localhost' || originHostName === '127.0.0.1' || originHostName.endsWith('.run.app') || originHostName.endsWith('.google.com'));
+                        const devAllowance = !HOSTED && (originHostName === 'localhost' || originHostName === '127.0.0.1' || originHostName.endsWith('.run.app') || originHostName.endsWith('.google.com'));
                         if (originHostName !== hostName && !devAllowance) {
                             return sendJson(res, 403, { error: 'Cross-origin request refused.' });
                         }
@@ -201,7 +201,7 @@ server.listen(PORT, HOST, () => {
      * not by anything failing loudly — so it is said once, at boot, where an
      * operator watching deploy logs will actually see it.
      */
-    if (REMOTE && !process.env.PUBLIC_BASE_URL) {
+    if (HOSTED && !process.env.PUBLIC_BASE_URL) {
         console.log('  ⚠ PUBLIC_BASE_URL is not set. Smartlead and Apollo webhook');
         console.log('    registration will fail with a clear error the moment anyone');
         console.log('    tries to use them — set it to this server\'s real public URL.');
