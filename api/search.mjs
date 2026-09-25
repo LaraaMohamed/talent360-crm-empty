@@ -13,7 +13,7 @@
  *    quotes and `*` in a company name would otherwise be parsed as syntax and
  *    throw, so tokens are extracted and re-quoted.
  */
-import { all, get } from '../lib/db.mjs';
+import { all, get, POSTGRES } from '../lib/db.mjs';
 import { OBJECTS } from '../lib/objects.mjs';
 import { can } from '../lib/auth.mjs';
 import { looksLikePhoneQuery, phoneMatchCandidates, phoneDigitsSql } from '../lib/phone.mjs';
@@ -47,15 +47,26 @@ export async function search({ url, ctx }) {
     let rows = [];
     if (match) {
         try {
-            rows = all(
-                `SELECT record_id, object_key, title, bm25(search_index) AS score
-                   FROM search_index
-                  WHERE search_index MATCH ? AND workspace_id = ?
-                    ${objectFilter ? 'AND object_key = ?' : ''}
-                  ORDER BY score
-                  LIMIT ?`,
-                objectFilter ? [match, ctx.workspaceId, objectFilter, scan] : [match, ctx.workspaceId, scan],
-            );
+            rows = POSTGRES
+                ? all(
+                    `WITH q AS (SELECT to_tsquery('simple', ?) AS tsq)
+                       SELECT record_id, object_key, title, ts_rank(search_vector, q.tsq) AS score
+                         FROM search_index, q
+                        WHERE search_vector @@ q.tsq AND workspace_id = ?
+                          ${objectFilter ? 'AND object_key = ?' : ''}
+                        ORDER BY score DESC
+                        LIMIT ?`,
+                    objectFilter ? [match, ctx.workspaceId, objectFilter, scan] : [match, ctx.workspaceId, scan],
+                )
+                : all(
+                    `SELECT record_id, object_key, title, bm25(search_index) AS score
+                       FROM search_index
+                      WHERE search_index MATCH ? AND workspace_id = ?
+                        ${objectFilter ? 'AND object_key = ?' : ''}
+                      ORDER BY score
+                      LIMIT ?`,
+                    objectFilter ? [match, ctx.workspaceId, objectFilter, scan] : [match, ctx.workspaceId, scan],
+                );
         } catch {
             // A query FTS5 still refuses (unbalanced quotes in a pathological name)
             // falls back to a plain scan rather than erroring at the user.
@@ -82,11 +93,18 @@ export async function search({ url, ctx }) {
     let matchedTotal = 0;
     if (match) {
         try {
-            for (const row of all(
-                `SELECT object_key, COUNT(*) AS n FROM search_index
-                  WHERE search_index MATCH ? AND workspace_id = ? GROUP BY object_key`,
-                [match, ctx.workspaceId],
-            )) {
+            const countRows = POSTGRES
+                ? all(
+                    `SELECT object_key, COUNT(*) AS n FROM search_index
+                      WHERE search_vector @@ to_tsquery('simple', ?) AND workspace_id = ? GROUP BY object_key`,
+                    [match, ctx.workspaceId],
+                )
+                : all(
+                    `SELECT object_key, COUNT(*) AS n FROM search_index
+                      WHERE search_index MATCH ? AND workspace_id = ? GROUP BY object_key`,
+                    [match, ctx.workspaceId],
+                );
+            for (const row of countRows) {
                 counts[row.object_key] = row.n;
                 matchedTotal += row.n;
             }
@@ -219,6 +237,18 @@ function toMatchQuery(raw) {
         .filter((t) => t.length >= 2)
         .slice(0, 8);
     if (!tokens.length) return null;
+
+    if (POSTGRES) {
+        // to_tsquery has its own lexer, where `&`, `|`, `!`, `(`, `)`, and `:`
+        // are operators, not literal text — unlike FTS5 below, quoting a term
+        // does not make its contents inert. Punctuation survives inside a
+        // token (an email's `@`, a domain's `.`) for FTS5's benefit only, so
+        // it is stripped here rather than trusted to tsquery's own parser.
+        const safe = tokens.map((t) => t.replace(/[^\p{L}\p{N}]/gu, '')).filter((t) => t.length >= 2);
+        if (!safe.length) return null;
+        return safe.map((t) => `${t}:*`).join(' & ');
+    }
+
     // Quoted, then starred: quoting neutralises FTS5 operators inside the term,
     // and the star outside the quotes still applies prefix matching.
     return tokens.map((t) => `"${t.replace(/"/g, '')}"*`).join(' AND ');
