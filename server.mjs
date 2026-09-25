@@ -19,6 +19,7 @@ import {
 import { sessionFor, routeAllowed, COOKIE, contextForApiKey, API_KEY_HEADER } from './lib/auth.mjs';
 import { registerRoutes, PUBLIC_ROUTES, SIGNED_ROUTES, WEBHOOK_ROUTES } from './api/index.mjs';
 import { matchQualifierRoute, proxy as proxyToQualifier, shutdown as shutdownQualifier } from './lib/qualifier-ui.mjs';
+import { handleMcpRequest } from './api/mcp.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 // Defaults to loopback-only, matching the comment above: this holds a customer
@@ -77,6 +78,38 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
+        /**
+         * The MCP server (api/mcp.mjs) — matched before everything else,
+         * including the CSRF check right below.
+         *
+         * It is NOT cookie-authenticated (an MCP client is Claude/ChatGPT/
+         * Gemini's own backend, not a browser holding this site's session
+         * cookie), so the CSRF defense built for cookies — an Origin check —
+         * is the wrong tool here and would only ever reject a legitimate
+         * client that (correctly) sends no Origin header at all, or a
+         * mismatched one. What actually protects this route is the bearer
+         * token every request must carry (`ctxForMcpRequest` in api/mcp.mjs)
+         * — a credential a cross-site page cannot attach the way it can ride
+         * an ambient cookie, which is the entire premise CSRF exploits.
+         * CORS is opened wide for the same reason: nothing here is reachable
+         * without that same explicit header, so an arbitrary origin reading
+         * the response teaches it nothing a stolen cookie would have.
+         */
+        if (url.pathname === '/mcp') {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version');
+            res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+            if (req.method === 'OPTIONS') {
+                res.writeHead(204);
+                return res.end();
+            }
+            if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE') {
+                return sendJson(res, 405, { error: 'Method not allowed' });
+            }
+            return await handleMcpRequest(req, res);
+        }
+
         /**
          * CSRF: session cookies are SameSite=Strict, and every state-changing
          * request must also carry an Origin matching this server. Together
